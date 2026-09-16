@@ -837,7 +837,7 @@ function calcTotal() {
 // ============================================================
 // AGREGAR GASTO LOCAL
 // ============================================================
-function agregarGasto() {
+async function agregarGasto() {
   const comp = document.getElementById('f-comp').value.trim();
   const fecha = document.getElementById('f-fecha').value;
   const prov = document.getElementById('f-prov').value.trim();
@@ -861,17 +861,26 @@ function agregarGasto() {
   }
 
   const gasto = { comp, fecha, prov, nit, concepto, cat, subtotal, iva, total, soporte };
+
+  // Guardar local primero
   gastos.push(gasto);
   localStorage.setItem('cajaMenorGastos', JSON.stringify(gastos));
-
-  // Auto-enviar al Sheet si hay URL configurada
-  if (cfg.scriptUrl) {
-    enviarAlSheet(gasto);
-  }
-
   limpiarForm();
   render();
-  showSync('✅ Gasto registrado', 'ok');
+
+  // Enviar al Sheet y esperar confirmación
+  if (!cfg.scriptUrl) {
+    showSync('⚠ Sin URL de Sheet — solo guardado local', 'err');
+    return;
+  }
+
+  showSync('⏳ Guardando en Google Sheet...', '');
+  const ok = await enviarAlSheet(gasto);
+  if (ok) {
+    showSync('✅ Guardado en Google Sheet', 'ok');
+  } else {
+    showSync('❌ No llegó al Sheet — revisa el Apps Script', 'err');
+  }
 }
 
 function limpiarForm() {
@@ -919,9 +928,8 @@ function limpiarDatosLocales() {
 }
 
 async function enviarAlSheet(gasto) {
-  if (!cfg.scriptUrl) return;
+  if (!cfg.scriptUrl) return false;
   try {
-    // Enviamos por GET con parámetros para evitar CORS
     const params = new URLSearchParams({
       action:   'addRow',
       comp:     gasto.comp,
@@ -935,15 +943,20 @@ async function enviarAlSheet(gasto) {
       total:    gasto.total,
       soporte:  gasto.soporte
     });
-    const resp = await fetch(cfg.scriptUrl + '?' + params.toString());
-    const data = await resp.json();
-    if (data.ok) {
-      showSync('✅ Guardado en Google Sheet', 'ok');
-    } else {
-      showSync('⚠ ' + (data.error || 'Error al guardar'), 'err');
+    const url = cfg.scriptUrl + '?' + params.toString();
+    console.log('[CajaMenor] Enviando a:', url);
+    const resp = await fetch(url);
+    const text = await resp.text();
+    console.log('[CajaMenor] Respuesta Sheet:', text);
+    let data;
+    try { data = JSON.parse(text); } catch(e) {
+      console.error('[CajaMenor] Respuesta no es JSON:', text);
+      return false;
     }
+    return data.ok === true;
   } catch (e) {
-    showSync('❌ No se pudo guardar en Sheet', 'err');
+    console.error('[CajaMenor] Error de red:', e);
+    return false;
   }
 }
 
