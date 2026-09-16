@@ -227,6 +227,19 @@
   .dot-anim { animation: pulse 1.2s infinite; display: inline-block; }
   @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
 
+  /* REPORTE */
+  .report-panel { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px; box-shadow:var(--shadow); }
+  .report-panel h3 { font-size:14px; font-weight:700; margin-bottom:14px; color:#7c3aed; }
+  .report-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-bottom:14px; }
+  .report-field label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+  .report-field input, .report-field select { width:100%; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:8px 11px; color:#1e293b; font-size:13px; outline:none; }
+  .report-field input:focus, .report-field select:focus { border-color:#7c3aed; }
+  .report-btns { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .btn-report { background:linear-gradient(135deg,#7c3aed,#2563eb); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .btn-report:hover { opacity:.88; }
+  .btn-report-outline { background:transparent; color:#7c3aed; border:1.5px solid #7c3aed; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+  .btn-report-outline:hover { background:#f5f3ff; }
+
   @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2,1fr); } .bottom-grid { grid-template-columns: 1fr; } }
   @media (max-width: 580px) { main { padding: 14px; } header { padding: 12px 14px; } .kpi-grid { grid-template-columns: 1fr 1fr; } .kpi-value { font-size: 20px; } }
 </style>
@@ -401,6 +414,58 @@
       <button class="btn-add" onclick="agregarGasto()">Registrar Gasto</button>
       <button class="btn-sync" onclick="sincronizar(false)">↺ Sincronizar con Sheet</button>
       <span class="sync-status" id="sync-status">Conectando con Sheet...</span>
+    </div>
+  </div>
+
+  <!-- PANEL DE INFORMES -->
+  <div class="report-panel">
+    <h3>📊 Generar Informe PDF</h3>
+    <div class="report-grid">
+      <div class="report-field">
+        <label>Tipo de Informe</label>
+        <select id="rpt-tipo" onchange="toggleRptCampos()">
+          <option value="mensual">Mensual</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+        </select>
+      </div>
+      <div class="report-field" id="rpt-mes-wrap">
+        <label>Mes</label>
+        <select id="rpt-mes">
+          <option value="1">Enero</option><option value="2">Febrero</option>
+          <option value="3">Marzo</option><option value="4">Abril</option>
+          <option value="5">Mayo</option><option value="6">Junio</option>
+          <option value="7">Julio</option><option value="8">Agosto</option>
+          <option value="9" selected>Septiembre</option><option value="10">Octubre</option>
+          <option value="11">Noviembre</option><option value="12">Diciembre</option>
+        </select>
+      </div>
+      <div class="report-field" id="rpt-trim-wrap" style="display:none">
+        <label>Trimestre</label>
+        <select id="rpt-trim">
+          <option value="1">1° (Ene–Mar)</option><option value="2">2° (Abr–Jun)</option>
+          <option value="3">3° (Jul–Sep)</option><option value="4">4° (Oct–Dic)</option>
+        </select>
+      </div>
+      <div class="report-field" id="rpt-sem-wrap" style="display:none">
+        <label>Semestre</label>
+        <select id="rpt-sem">
+          <option value="1">1° (Ene–Jun)</option><option value="2">2° (Jul–Dic)</option>
+        </select>
+      </div>
+      <div class="report-field">
+        <label>Año</label>
+        <input type="number" id="rpt-anio" value="2026" min="2020" max="2099" />
+      </div>
+      <div class="report-field">
+        <label>Nombre de la Empresa</label>
+        <input type="text" id="rpt-empresa" placeholder="Mi Empresa S.A.S" />
+      </div>
+    </div>
+    <div class="report-btns">
+      <button class="btn-report" onclick="generarPDF()">⬇ Descargar PDF</button>
+      <span style="font-size:12px;color:#64748b" id="rpt-status"></span>
     </div>
   </div>
 
@@ -774,6 +839,263 @@ function calcArqueo() {
     res.className = 'arqueo-result arqueo-fail';
     res.textContent = `⚠ DIFERENCIA: ${fmt(Math.abs(diferencia))} ${diferencia>0?'(sobrante)':'(faltante)'}`;
   }
+}// ── INFORMES PDF ──────────────────────────────────────────────────────────────
+function toggleRptCampos() {
+  const tipo = document.getElementById('rpt-tipo').value;
+  document.getElementById('rpt-mes-wrap').style.display  = tipo==='mensual'     ? '' : 'none';
+  document.getElementById('rpt-trim-wrap').style.display = tipo==='trimestral'  ? '' : 'none';
+  document.getElementById('rpt-sem-wrap').style.display  = tipo==='semestral'   ? '' : 'none';
+}
+
+const MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio',
+               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function filtrarGastosPeriodo(tipo, anio, mes, trim, sem) {
+  return gastos.filter(g => {
+    const f = new Date(g.fecha + 'T00:00:00');
+    if (f.getFullYear() !== anio) return false;
+    const m = f.getMonth() + 1;
+    if (tipo === 'mensual')     return m === mes;
+    if (tipo === 'trimestral') { const r={1:[1,2,3],2:[4,5,6],3:[7,8,9],4:[10,11,12]}; return (r[trim]||[]).includes(m); }
+    if (tipo === 'semestral')  return sem===1 ? m<=6 : m>=7;
+    if (tipo === 'anual')      return true;
+    return false;
+  });
+}
+
+function tituloPeriodo(tipo, anio, mes, trim, sem) {
+  if (tipo==='mensual')     return `${MESES[mes]} ${anio}`;
+  if (tipo==='trimestral')  return `Trimestre ${trim} · ${anio}`;
+  if (tipo==='semestral')   return `Semestre ${sem} · ${anio}`;
+  return `Año ${anio}`;
+}
+
+async function generarPDF() {
+  const tipo    = document.getElementById('rpt-tipo').value;
+  const anio    = parseInt(document.getElementById('rpt-anio').value);
+  const mes     = parseInt(document.getElementById('rpt-mes').value);
+  const trim    = parseInt(document.getElementById('rpt-trim').value);
+  const sem     = parseInt(document.getElementById('rpt-sem').value);
+  const empresa = document.getElementById('rpt-empresa').value.trim() || 'Mi Empresa';
+  const rptSt   = document.getElementById('rpt-status');
+
+  rptSt.textContent = '⏳ Generando PDF...';
+
+  // Cargar jsPDF dinámicamente
+  if (!window.jspdf) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+    s.onload = res; s.onerror = () => res(); // opcional, continuar igual
+    document.head.appendChild(s);
+  });
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W   = 210; // ancho A4
+  const M   = 14;  // margen
+  let   Y   = 14;  // cursor Y
+
+  const datos  = filtrarGastosPeriodo(tipo, anio, mes, trim, sem);
+  const titulo = tituloPeriodo(tipo, anio, mes, trim, sem);
+  const total  = datos.reduce((s,g) => s+(Number(g.total)||0), 0);
+  const subT   = datos.reduce((s,g) => s+(Number(g.subtotal)||0), 0);
+  const ivaT   = datos.reduce((s,g) => s+(Number(g.iva)||0), 0);
+  const saldo  = cfg.fondo - total;
+  const pct    = cfg.fondo>0 ? (total/cfg.fondo*100) : 0;
+  const sinSop = datos.filter(g=>g.soporte!=='Sí').length;
+  const estado = pct<70?'Normal':pct<90?'Alerta de Reembolso':'CRÍTICO';
+  const now    = new Date().toLocaleString('es-CO');
+
+  // ── Helpers ──
+  const fmtN = v => '$ ' + Number(v||0).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
+  const rect  = (x,y,w,h,r,g2,b) => { doc.setFillColor(r,g2,b); doc.rect(x,y,w,h,'F'); };
+  const txt   = (t,x,y,size,bold,color) => {
+    doc.setFontSize(size||10);
+    doc.setFont('helvetica', bold?'bold':'normal');
+    doc.setTextColor(...(color||[30,41,59]));
+    doc.text(String(t),x,y);
+  };
+
+  // ── HEADER AZUL ──
+  rect(0,0,W,28, 37,99,235);
+  txt('💰 INFORME DE CAJA MENOR', W/2, 11, 16, true, [255,255,255]);
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(200,220,255);
+  doc.text(`${tipo.toUpperCase()} · ${titulo}`, W/2, 18, {align:'center'});
+  doc.text(`Generado: ${now}`, W/2, 24, {align:'center'});
+  Y = 34;
+
+  // ── INFO EMPRESA ──
+  rect(M, Y, W-M*2, 16, 239,246,255);
+  doc.setDrawColor(191,219,254); doc.setLineWidth(0.3);
+  doc.rect(M, Y, W-M*2, 16);
+  txt(`Empresa: ${empresa}`, M+3, Y+6, 9, true, [37,99,235]);
+  txt(`Custodio: ${cfg.custodio||'—'}`, M+3, Y+12, 9, false, [71,85,105]);
+  txt(`Periodo: ${titulo}`, 120, Y+6, 9, true, [37,99,235]);
+  txt(`Registros: ${datos.length}`, 120, Y+12, 9, false, [71,85,105]);
+  Y += 22;
+
+  // ── KPIs ──
+  txt('RESUMEN EJECUTIVO', M, Y, 11, true, [37,99,235]); Y += 5;
+  const kpis = [
+    {l:'FONDO ASIGNADO', v:fmtN(cfg.fondo), c:[37,99,235]},
+    {l:'TOTAL GASTOS',   v:fmtN(total),     c:[220,38,38]},
+    {l:'SALDO DISPONIBLE',v:fmtN(saldo),    c:[5,150,105]},
+    {l:'% EJECUCIÓN',    v:pct.toFixed(1)+'%', c: pct<70?[5,150,105]:pct<90?[217,119,6]:[220,38,38]},
+  ];
+  const kw = (W-M*2)/4;
+  kpis.forEach((k,i) => {
+    const x = M + i*kw;
+    rect(x, Y, kw-1, 16, 239,246,255);
+    doc.setDrawColor(191,219,254); doc.rect(x,Y,kw-1,16);
+    doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(100,116,139);
+    doc.text(k.l, x+kw/2-0.5, Y+5, {align:'center'});
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(...k.c);
+    doc.text(k.v, x+kw/2-0.5, Y+13, {align:'center'});
+  });
+  Y += 20;
+
+  // Fila 2 KPIs
+  const kpis2 = [
+    {l:'SUBTOTAL SIN IVA', v:fmtN(subT),    c:[30,41,59]},
+    {l:'IVA 19% TOTAL',    v:fmtN(ivaT),    c:[30,41,59]},
+    {l:'SIN SOPORTE',      v:String(sinSop), c: sinSop>0?[220,38,38]:[5,150,105]},
+    {l:'ESTADO',           v:estado,         c: pct<70?[5,150,105]:pct<90?[217,119,6]:[220,38,38]},
+  ];
+  kpis2.forEach((k,i) => {
+    const x = M + i*kw;
+    rect(x, Y, kw-1, 14, 248,250,252);
+    doc.setDrawColor(226,232,240); doc.rect(x,Y,kw-1,14);
+    doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(100,116,139);
+    doc.text(k.l, x+kw/2-0.5, Y+4.5, {align:'center'});
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...k.c);
+    doc.text(k.v, x+kw/2-0.5, Y+11, {align:'center'});
+  });
+  Y += 18;
+
+  // ── DISTRIBUCIÓN POR CATEGORÍA ──
+  doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+  doc.line(M, Y, W-M, Y); Y += 5;
+  txt('DISTRIBUCIÓN POR CATEGORÍA', M, Y, 11, true, [37,99,235]); Y += 4;
+
+  const cats = {};
+  datos.forEach(g => { cats[g.cat] = (cats[g.cat]||0)+(Number(g.total)||0); });
+  const catRows = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,v]) => {
+    const n   = datos.filter(g=>g.cat===c).length;
+    const p   = total>0 ? (v/total*100).toFixed(1)+'%' : '0%';
+    return [c, fmtN(v), p, String(n)];
+  });
+  catRows.push(['TOTAL', fmtN(total), '100%', String(datos.length)]);
+
+  doc.autoTable({
+    startY: Y,
+    head: [['Categoría','Total','% del Total','Registros']],
+    body: catRows,
+    margin: {left:M, right:M},
+    styles: {fontSize:8, cellPadding:3, textColor:[30,41,59]},
+    headStyles: {fillColor:[37,99,235], textColor:[255,255,255], fontStyle:'bold', fontSize:8},
+    alternateRowStyles: {fillColor:[248,250,252]},
+    foot: [],
+    didParseCell: (d) => {
+      if (d.row.index === catRows.length-1) {
+        d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.fillColor = [239,246,255];
+        d.cell.styles.textColor = [37,99,235];
+      }
+    }
+  });
+  Y = doc.lastAutoTable.finalY + 6;
+
+  // ── DETALLE DE MOVIMIENTOS ──
+  if (Y > 230) { doc.addPage(); Y = 14; }
+  doc.line(M, Y, W-M, Y); Y += 5;
+  txt('DETALLE DE MOVIMIENTOS', M, Y, 11, true, [37,99,235]); Y += 4;
+
+  const detRows = [...datos].sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(g => [
+    g.comp,
+    g.fecha,
+    (g.prov||'').substring(0,20),
+    (g.concepto||'').substring(0,20),
+    (g.cat||'').substring(0,12),
+    fmtN(g.subtotal),
+    fmtN(g.iva),
+    fmtN(g.total),
+    g.soporte==='Sí'?'✓':'✗'
+  ]);
+  detRows.push(['','','','','TOTAL', fmtN(subT), fmtN(ivaT), fmtN(total), '']);
+
+  doc.autoTable({
+    startY: Y,
+    head: [['Comp.','Fecha','Proveedor','Concepto','Categoría','Subtotal','IVA','Total','Sop.']],
+    body: detRows,
+    margin: {left:M, right:M},
+    styles: {fontSize:7, cellPadding:2, textColor:[30,41,59]},
+    headStyles: {fillColor:[37,99,235], textColor:[255,255,255], fontStyle:'bold', fontSize:7},
+    alternateRowStyles: {fillColor:[248,250,252]},
+    columnStyles: {
+      5:{halign:'right'}, 6:{halign:'right'}, 7:{halign:'right', fontStyle:'bold'},
+      8:{halign:'center'}
+    },
+    didParseCell: (d) => {
+      if (d.row.index === detRows.length-1) {
+        d.cell.styles.fontStyle='bold';
+        d.cell.styles.fillColor=[239,246,255];
+        d.cell.styles.textColor=[37,99,235];
+      }
+      if (d.column.index===8 && d.section==='body' && d.row.index<detRows.length-1) {
+        d.cell.styles.textColor = detRows[d.row.index][8]==='✓' ? [5,150,105] : [220,38,38];
+      }
+    }
+  });
+  Y = doc.lastAutoTable.finalY + 8;
+
+  // ── NOTAS ──
+  if (Y > 240) { doc.addPage(); Y = 14; }
+  doc.line(M, Y, W-M, Y); Y += 5;
+  txt('NOTAS DE CONTROL INTERNO', M, Y, 11, true, [37,99,235]); Y += 5;
+  const notas = [
+    `• Fondo fijo asignado: ${fmtN(cfg.fondo)}`,
+    `• Total ejecutado: ${fmtN(total)} (${pct.toFixed(1)}%)`,
+    `• Saldo disponible: ${fmtN(saldo)}`,
+    `• Registros sin soporte: ${sinSop} ${sinSop>0?'⚠ Requiere gestión':'✓ Todo en orden'}`,
+    `• IVA total reconocido: ${fmtN(ivaT)}   •   Estado del fondo: ${estado}`,
+    `• Los valores corresponden a gastos con cargo a Caja Menor, soportados según normativa vigente.`,
+  ];
+  notas.forEach(n => { txt(n, M, Y, 8, false, [71,85,105]); Y += 5; });
+  Y += 6;
+
+  // ── FIRMAS ──
+  if (Y > 255) { doc.addPage(); Y = 14; }
+  doc.setDrawColor(100,116,139); doc.setLineWidth(0.4);
+  doc.line(M, Y, M+60, Y);
+  doc.line(W-M-60, Y, W-M, Y);
+  txt('CUSTODIO / RESPONSABLE', M, Y+5, 8, true, [100,116,139]);
+  txt(cfg.custodio||'—', M, Y+10, 8, false, [30,41,59]);
+  txt('REVISADO POR', W-M-60, Y+5, 8, true, [100,116,139]);
+  Y += 16;
+
+  // ── PIE DE PÁGINA ──
+  const pages = doc.internal.getNumberOfPages();
+  for (let i=1; i<=pages; i++) {
+    doc.setPage(i);
+    rect(0, 287, W, 10, 248,250,252);
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(148,163,184);
+    doc.text(`Informe generado el ${now} · Sistema Tablero Caja Menor`, W/2, 293, {align:'center'});
+    doc.text(`Página ${i} de ${pages}`, W-M, 293, {align:'right'});
+  }
+
+  // ── DESCARGAR ──
+  const nombre = `Informe_CajaMenor_${tipo}_${titulo.replace(/[· ]/g,'_')}.pdf`;
+  doc.save(nombre);
+  rptSt.textContent = `✅ Descargado: ${nombre}`;
+  setTimeout(()=>{ rptSt.textContent=''; }, 5000);
 }
 </script>
 </body>
