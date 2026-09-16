@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablero Caja Menor</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1e2335;
+    --border: #2a3050;
+    --accent: #3b82f6;
+    --accent2: #22d3ee;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
+    --font: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .logo-text { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .custodio-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .custodio-badge span { color: var(--text); font-weight: 600; }
+  .btn-config {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s;
+  }
+  .btn-config:hover { opacity: .85; }
+
+  /* MAIN LAYOUT */
+  main { padding: 24px 28px; max-width: 1400px; }
+
+  /* CONFIG PANEL */
+  #config-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 24px;
+    display: none;
+  }
+  #config-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--accent2); }
+  .config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .config-field label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 5px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+  .config-field input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .config-field input:focus { border-color: var(--accent); }
+  .btn-save {
+    background: var(--green);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-save:hover { opacity: .85; }
+
+  /* ALERT BANNER */
+  #alert-banner {
+    display: none;
+    background: linear-gradient(90deg, rgba(245,158,11,.15), rgba(245,158,11,.05));
+    border: 1px solid var(--yellow);
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--yellow);
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* KPI CARDS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    border-radius: 14px 14px 0 0;
+  }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.yellow::before { background: var(--yellow); }
+  .kpi-card.red::before { background: var(--red); }
+  .kpi-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 800; letter-spacing: -1px; color: var(--text); }
+  .kpi-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+  .kpi-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-top: 8px;
+  }
+  .status-normal { background: rgba(16,185,129,.15); color: var(--green); }
+  .status-alerta { background: rgba(245,158,11,.15); color: var(--yellow); }
+  .status-critico { background: rgba(239,68,68,.15); color: var(--red); }
+
+  /* PROGRESS BAR */
+  .progress-bar-wrap {
+    margin-top: 10px;
+    background: var(--surface2);
+    border-radius: 99px;
+    height: 6px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 6px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .5s;
+  }
+  .progress-bar.warn { background: linear-gradient(90deg, var(--yellow), #fb923c); }
+  .progress-bar.danger { background: linear-gradient(90deg, var(--red), #f97316); }
+
+  /* BOTTOM GRID */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  /* PANEL BASE */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title { font-size: 14px; font-weight: 700; }
+  .panel-badge {
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    color: var(--text-dim);
+  }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; max-height: 360px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: var(--surface2);
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text-muted);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  tbody tr { border-bottom: 1px solid rgba(42,48,80,.5); transition: background .15s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 10px 16px; font-size: 13px; color: var(--text-dim); }
+  tbody td.bold { color: var(--text); font-weight: 600; }
+  .cat-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 20px;
+    background: rgba(59,130,246,.15);
+    color: var(--accent);
+  }
+  .soporte-ok { color: var(--green); font-size: 16px; }
+  .soporte-no { color: var(--red); font-size: 16px; }
+  .empty-row td { text-align: center; padding: 36px; color: var(--text-muted); }
+
+  /* CATEGORY PANEL */
+  .cat-list { padding: 16px 20px; }
+  .cat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cat-name { flex: 1; font-size: 13px; color: var(--text-dim); }
+  .cat-amount { font-size: 13px; font-weight: 700; color: var(--text); }
+  .cat-bar-wrap { width: 100%; background: var(--surface2); border-radius: 99px; height: 4px; margin-top: 3px; }
+  .cat-bar { height: 4px; border-radius: 99px; }
+
+  /* ARQUEO */
+  .arqueo-panel { margin-top: 16px; }
+  .arqueo-body { padding: 16px 20px; }
+  .arqueo-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(42,48,80,.5);
+  }
+  .arqueo-label { font-size: 13px; color: var(--text-dim); }
+  .arqueo-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    width: 140px;
+    text-align: right;
+    outline: none;
+  }
+  .arqueo-input:focus { border-color: var(--accent); }
+  .arqueo-result {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .arqueo-ok { background: rgba(16,185,129,.12); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+  .arqueo-fail { background: rgba(239,68,68,.12); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+
+  /* ADD FORM */
+  .add-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .add-form h3 { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: var(--accent2); }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .form-field label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; }
+  .form-field input, .form-field select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 11px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+  }
+  .form-field input:focus, .form-field select:focus { border-color: var(--accent); }
+  .form-field select option { background: var(--surface2); }
+  .form-actions { display: flex; gap: 10px; align-items: center; }
+  .btn-add {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 22px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-add:hover { opacity: .85; }
+  .btn-sync {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-sync:hover { background: rgba(34,211,238,.08); }
+  .sync-status { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+  .sync-ok { color: var(--green); }
+  .sync-err { color: var(--red); }
+
+  /* FOOTER */
+  footer {
+    padding: 12px 28px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .bottom-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 580px) {
+    main { padding: 16px; }
+    header { padding: 14px 16px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .kpi-value { font-size: 20px; }
+  }
+
+  /* SCROLL */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* LOADER */
+  .loading { text-align: center; padding: 30px; color: var(--text-muted); font-size: 13px; }
+  .dot-anim { display: inline-block; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">💰</div>
+    <div>
+      <div class="logo-text">Caja Menor</div>
+      <div class="logo-sub" id="periodo-label">Cargando configuración...</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="custodio-badge">Custodio: <span id="custodio-name">—</span></div>
+    <button class="btn-config" onclick="toggleConfig()">⚙ Configurar</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- CONFIG PANEL -->
+  <div id="config-panel">
+    <h3>⚙ Parámetros del Fondo</h3>
+    <div class="config-grid">
+      <div class="config-field">
+        <label>URL del Google Apps Script</label>
+        <input type="url" id="cfg-script-url" placeholder="https://script.google.com/macros/s/..." />
+      </div>
+      <div class="config-field">
+        <label>Monto Fijo del Fondo ($)</label>
+        <input type="number" id="cfg-fondo" placeholder="500000" />
+      </div>
+      <div class="config-field">
+        <label>Tope por Transacción ($)</label>
+        <input type="number" id="cfg-tope" placeholder="50000" />
+      </div>
+      <div class="config-field">
+        <label>% de Ejecución para Reembolso</label>
+        <input type="number" id="cfg-reembolso-pct" placeholder="70" min="0" max="100" />
+      </div>
+      <div class="config-field">
+        <label>Custodio / Responsable</label>
+        <input type="text" id="cfg-custodio" placeholder="Nombre completo" />
+      </div>
+      <div class="config-field">
+        <label>Periodo de Arqueo</label>
+        <select id="cfg-periodo">
+          <option value="Diario">Diario</option>
+          <option value="Semanal" selected>Semanal</option>
+          <option value="Quincenal">Quincenal</option>
+          <option value="Mensual">Mensual</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-save" onclick="saveConfig()">💾 Guardar Configuración</button>
+  </div>
+
+  <!-- ALERT BANNER -->
+  <div id="alert-banner" style="display:none;">
+    ⚠ <span id="alert-text"></span>
+  </div>
+
+  <!-- KPI GRID -->
+  <div class="kpi-grid">
+    <div class="kpi-card green" id="kpi-saldo">
+      <div class="kpi-label">Saldo Disponible</div>
+      <div class="kpi-value" id="val-saldo">$0</div>
+      <div class="kpi-sub" id="sub-saldo">Fondo asignado: $0</div>
+    </div>
+    <div class="kpi-card" id="kpi-gastos">
+      <div class="kpi-label">Total Gastos</div>
+      <div class="kpi-value" id="val-gastos">$0</div>
+      <div class="kpi-sub" id="sub-gastos">0 comprobantes</div>
+    </div>
+    <div class="kpi-card" id="kpi-pct">
+      <div class="kpi-label">Ejecución del Fondo</div>
+      <div class="kpi-value" id="val-pct">0%</div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="pct-bar" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="kpi-card" id="kpi-estado">
+      <div class="kpi-label">Estado del Fondo</div>
+      <div id="val-estado-pill" class="kpi-status status-normal">● Normal</div>
+      <div class="kpi-sub" id="sub-estado">Tope por transacción: $0</div>
+    </div>
+  </div>
+
+  <!-- FORM AÑADIR GASTO -->
+  <div class="add-form">
+    <h3>➕ Registrar Nuevo Gasto</h3>
+    <div class="form-grid">
+      <div class="form-field">
+        <label>N° Comprobante</label>
+        <input type="text" id="f-comp" placeholder="CM-001" />
+      </div>
+      <div class="form-field">
+        <label>Fecha</label>
+        <input type="date" id="f-fecha" />
+      </div>
+      <div class="form-field">
+        <label>Proveedor / Beneficiario</label>
+        <input type="text" id="f-prov" placeholder="Nombre del proveedor" />
+      </div>
+      <div class="form-field">
+        <label>NIT / RUT / CC</label>
+        <input type="text" id="f-nit" placeholder="900.000.000-0" />
+      </div>
+      <div class="form-field">
+        <label>Concepto</label>
+        <input type="text" id="f-concepto" placeholder="Descripción del gasto" />
+      </div>
+      <div class="form-field">
+        <label>Categoría</label>
+        <select id="f-cat">
+          <option value="">Seleccionar...</option>
+          <option>Transporte</option>
+          <option>Papelería</option>
+          <option>Aseo y Cafetería</option>
+          <option>Alimentación</option>
+          <option>Mensajería</option>
+          <option>Servicios Públicos</option>
+          <option>Mantenimiento</option>
+          <option>Otros</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Subtotal (sin impuestos)</label>
+        <input type="number" id="f-subtotal" placeholder="0" oninput="calcTotal()" />
+      </div>
+      <div class="form-field">
+        <label>IVA / Impuestos</label>
+        <input type="number" id="f-iva" placeholder="0" oninput="calcTotal()" />
+      </div>
+      <div class="form-field">
+        <label>Total</label>
+        <input type="number" id="f-total" placeholder="0" style="font-weight:700;" />
+      </div>
+      <div class="form-field">
+        <label>¿Tiene Soporte?</label>
+        <select id="f-soporte">
+          <option value="Sí">✅ Sí tiene soporte</option>
+          <option value="No">❌ Sin soporte</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-add" onclick="agregarGasto()">Registrar Gasto</button>
+      <button class="btn-sync" onclick="sincronizar()">↺ Sincronizar con Sheet</button>
+      <span class="sync-status" id="sync-status">Listo</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM GRID: Tabla + Categorías -->
+  <div class="bottom-grid">
+    <!-- TABLA MOVIMIENTOS -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Histórico de Movimientos</div>
+        <span class="panel-badge" id="badge-total">0 registros</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>N° Comp.</th>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Concepto</th>
+              <th>Categoría</th>
+              <th>Subtotal</th>
+              <th>IVA</th>
+              <th>Total</th>
+              <th>Soporte</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body">
+            <tr class="empty-row"><td colspan="9">Sin registros aún. Sincroniza con tu Google Sheet o agrega gastos.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CATEGORÍAS + ARQUEO -->
+    <div>
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header">
+          <div class="panel-title">Distribución por Categoría</div>
+        </div>
+        <div class="cat-list" id="cat-list">
+          <div class="loading"><span class="dot-anim">●</span> Sin datos</div>
+        </div>
+      </div>
+
+      <!-- ARQUEO -->
+      <div class="panel arqueo-panel">
+        <div class="panel-header">
+          <div class="panel-title">Módulo de Arqueo</div>
+          <button class="btn-sync" onclick="calcArqueo()" style="padding:4px 12px;font-size:12px;">Calcular</button>
+        </div>
+        <div class="arqueo-body">
+          <div class="arqueo-row">
+            <span class="arqueo-label">Efectivo físico en caja</span>
+            <input type="number" class="arqueo-input" id="arq-efectivo" placeholder="0" />
+          </div>
+          <div class="arqueo-row">
+            <span class="arqueo-label">Total comprobantes registrados</span>
+            <span id="arq-comprobantes" style="font-weight:700;color:var(--text)">$0</span>
+          </div>
+          <div class="arqueo-row">
+            <span class="arqueo-label">Fondo asignado</span>
+            <span id="arq-fondo" style="font-weight:700;color:var(--text)">$0</span>
+          </div>
+          <div id="arqueo-result" class="arqueo-result" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Tablero Caja Menor — Actualizado: <span id="last-update">—</span> &nbsp;|&nbsp; Datos desde Google Sheets vía Apps Script
+</footer>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+let cfg = {
+  scriptUrl: '',
+  fondo: 0,
+  tope: 0,
+  reembolsoPct: 70,
+  custodio: 'Sin definir',
+  periodo: 'Semanal'
+};
+
+let gastos = [];
+
+const CAT_COLORS = {
+  'Transporte': '#3b82f6',
+  'Papelería': '#8b5cf6',
+  'Aseo y Cafetería': '#10b981',
+  'Alimentación': '#f59e0b',
+  'Mensajería': '#22d3ee',
+  'Servicios Públicos': '#f97316',
+  'Mantenimiento': '#ec4899',
+  'Otros': '#64748b'
+};
+
+// ============================================================
+// INIT
+// ============================================================
+window.onload = () => {
+  const saved = localStorage.getItem('cajaMenorCfg');
+  if (saved) {
+    cfg = { ...cfg, ...JSON.parse(saved) };
+    applyConfig();
+  }
+  const savedGastos = localStorage.getItem('cajaMenorGastos');
+  if (savedGastos) {
+    gastos = JSON.parse(savedGastos);
+    render();
+  }
+  // Set today's date
+  document.getElementById('f-fecha').valueAsDate = new Date();
+};
+
+function applyConfig() {
+  document.getElementById('custodio-name').textContent = cfg.custodio;
+  document.getElementById('periodo-label').textContent = `Arqueo ${cfg.periodo} · Fondo: ${fmt(cfg.fondo)}`;
+  document.getElementById('cfg-script-url').value = cfg.scriptUrl;
+  document.getElementById('cfg-fondo').value = cfg.fondo;
+  document.getElementById('cfg-tope').value = cfg.tope;
+  document.getElementById('cfg-reembolso-pct').value = cfg.reembolsoPct;
+  document.getElementById('cfg-custodio').value = cfg.custodio;
+  document.getElementById('cfg-periodo').value = cfg.periodo;
+}
+
+function saveConfig() {
+  cfg.scriptUrl = document.getElementById('cfg-script-url').value.trim();
+  cfg.fondo = parseFloat(document.getElementById('cfg-fondo').value) || 0;
+  cfg.tope = parseFloat(document.getElementById('cfg-tope').value) || 0;
+  cfg.reembolsoPct = parseFloat(document.getElementById('cfg-reembolso-pct').value) || 70;
+  cfg.custodio = document.getElementById('cfg-custodio').value.trim();
+  cfg.periodo = document.getElementById('cfg-periodo').value;
+  localStorage.setItem('cajaMenorCfg', JSON.stringify(cfg));
+  applyConfig();
+  render();
+  toggleConfig();
+  showSync('✅ Configuración guardada', 'ok');
+}
+
+function toggleConfig() {
+  const p = document.getElementById('config-panel');
+  p.style.display = p.style.display === 'none' || p.style.display === '' ? 'block' : 'none';
+}
+
+// ============================================================
+// FORMAT
+// ============================================================
+function fmt(v) {
+  if (isNaN(v) || v === null) return '$0';
+  return '$' + Number(v).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function calcTotal() {
+  const sub = parseFloat(document.getElementById('f-subtotal').value) || 0;
+  const iva = parseFloat(document.getElementById('f-iva').value) || 0;
+  document.getElementById('f-total').value = sub + iva;
+}
+
+// ============================================================
+// AGREGAR GASTO LOCAL
+// ============================================================
+function agregarGasto() {
+  const comp = document.getElementById('f-comp').value.trim();
+  const fecha = document.getElementById('f-fecha').value;
+  const prov = document.getElementById('f-prov').value.trim();
+  const nit = document.getElementById('f-nit').value.trim();
+  const concepto = document.getElementById('f-concepto').value.trim();
+  const cat = document.getElementById('f-cat').value;
+  const subtotal = parseFloat(document.getElementById('f-subtotal').value) || 0;
+  const iva = parseFloat(document.getElementById('f-iva').value) || 0;
+  const total = parseFloat(document.getElementById('f-total').value) || 0;
+  const soporte = document.getElementById('f-soporte').value;
+
+  if (!comp || !fecha || !prov || !concepto || !cat || total <= 0) {
+    alert('⚠ Por favor completa todos los campos obligatorios (Comprobante, Fecha, Proveedor, Concepto, Categoría y Total).');
+    return;
+  }
+  if (cfg.tope > 0 && total > cfg.tope) {
+    if (!confirm(`⚠ El total $${total.toLocaleString()} supera el tope por transacción de ${fmt(cfg.tope)}. ¿Deseas registrarlo igualmente?`)) return;
+  }
+  if (soporte === 'No') {
+    alert('⚠ Recuerda: No se permiten gastos sin soporte. Asegúrate de adjuntar el documento equivalente.');
+  }
+
+  const gasto = { comp, fecha, prov, nit, concepto, cat, subtotal, iva, total, soporte };
+  gastos.push(gasto);
+  localStorage.setItem('cajaMenorGastos', JSON.stringify(gastos));
+
+  // Auto-enviar al Sheet si hay URL configurada
+  if (cfg.scriptUrl) {
+    enviarAlSheet(gasto);
+  }
+
+  limpiarForm();
+  render();
+  showSync('✅ Gasto registrado', 'ok');
+}
+
+function limpiarForm() {
+  ['f-comp','f-prov','f-nit','f-concepto','f-subtotal','f-iva','f-total'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('f-cat').value = '';
+  document.getElementById('f-fecha').valueAsDate = new Date();
+}
+
+// ============================================================
+// SINCRONIZAR CON GOOGLE SHEET
+// ============================================================
+async function sincronizar() {
+  if (!cfg.scriptUrl) {
+    alert('⚠ Primero configura la URL de tu Google Apps Script en ⚙ Configurar.');
+    return;
+  }
+  showSync('↺ Sincronizando...', '');
+  try {
+    const resp = await fetch(cfg.scriptUrl + '?action=getAll');
+    const data = await resp.json();
+    if (data && data.gastos) {
+      gastos = data.gastos;
+      localStorage.setItem('cajaMenorGastos', JSON.stringify(gastos));
+      render();
+      document.getElementById('last-update').textContent = new Date().toLocaleString('es-CO');
+      showSync('✅ Sincronizado con Sheet', 'ok');
+    } else {
+      showSync('⚠ Sin datos en Sheet', 'err');
+    }
+  } catch (e) {
+    // Si falla la red, igual mostramos los datos locales
+    render();
+    showSync('❌ Error de conexión — Datos locales', 'err');
+  }
+}
+
+async function enviarAlSheet(gasto) {
+  if (!cfg.scriptUrl) return;
+  try {
+    await fetch(cfg.scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'addRow', gasto })
+    });
+  } catch (e) { /* silencioso */ }
+}
+
+function showSync(msg, type) {
+  const el = document.getElementById('sync-status');
+  el.textContent = msg;
+  el.className = 'sync-status ' + (type === 'ok' ? 'sync-ok' : type === 'err' ? 'sync-err' : '');
+}
+
+// ============================================================
+// RENDER PRINCIPAL
+// ============================================================
+function render() {
+  const totalGastos = gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
+  const saldo = cfg.fondo - totalGastos;
+  const pct = cfg.fondo > 0 ? (totalGastos / cfg.fondo) * 100 : 0;
+
+  // KPIs
+  document.getElementById('val-saldo').textContent = fmt(saldo);
+  document.getElementById('sub-saldo').textContent = `Fondo asignado: ${fmt(cfg.fondo)}`;
+
+  document.getElementById('val-gastos').textContent = fmt(totalGastos);
+  document.getElementById('sub-gastos').textContent = `${gastos.length} comprobante(s)`;
+
+  document.getElementById('val-pct').textContent = pct.toFixed(1) + '%';
+  const bar = document.getElementById('pct-bar');
+  bar.style.width = Math.min(pct, 100) + '%';
+  bar.className = 'progress-bar' + (pct >= 90 ? ' danger' : pct >= cfg.reembolsoPct ? ' warn' : '');
+
+  const pill = document.getElementById('val-estado-pill');
+  document.getElementById('sub-estado').textContent = `Tope por transacción: ${fmt(cfg.tope)}`;
+
+  const banner = document.getElementById('alert-banner');
+  if (pct >= 90) {
+    pill.className = 'kpi-status status-critico'; pill.textContent = '● Crítico';
+    banner.style.display = 'flex';
+    document.getElementById('alert-text').textContent = `¡ALERTA! Fondo consumido al ${pct.toFixed(1)}%. Solicitar reembolso de inmediato.`;
+  } else if (pct >= cfg.reembolsoPct) {
+    pill.className = 'kpi-status status-alerta'; pill.textContent = '● Alerta de Reembolso';
+    banner.style.display = 'flex';
+    document.getElementById('alert-text').textContent = `Fondo ejecutado al ${pct.toFixed(1)}% — Supera el umbral de reembolso (${cfg.reembolsoPct}%). Gestionar reposición.`;
+  } else {
+    pill.className = 'kpi-status status-normal'; pill.textContent = '● Normal';
+    banner.style.display = 'none';
+  }
+
+  // TABLA
+  renderTabla();
+  // CATEGORÍAS
+  renderCategorias(totalGastos);
+  // ARQUEO
+  document.getElementById('arq-comprobantes').textContent = fmt(totalGastos);
+  document.getElementById('arq-fondo').textContent = fmt(cfg.fondo);
+}
+
+function renderTabla() {
+  const tbody = document.getElementById('tabla-body');
+  document.getElementById('badge-total').textContent = gastos.length + ' registros';
+  if (gastos.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Sin registros aún.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = [...gastos].reverse().map(g => `
+    <tr>
+      <td class="bold">${g.comp}</td>
+      <td>${g.fecha}</td>
+      <td>${g.prov}<br><small style="color:var(--text-muted)">${g.nit || ''}</small></td>
+      <td>${g.concepto}</td>
+      <td><span class="cat-pill" style="background:${(CAT_COLORS[g.cat]||'#64748b')}22;color:${CAT_COLORS[g.cat]||'#94a3b8'}">${g.cat}</span></td>
+      <td>${fmt(g.subtotal)}</td>
+      <td>${fmt(g.iva)}</td>
+      <td class="bold">${fmt(g.total)}</td>
+      <td>${g.soporte === 'Sí' ? '<span class="soporte-ok">✅</span>' : '<span class="soporte-no">❌</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderCategorias(totalGastos) {
+  const cats = {};
+  gastos.forEach(g => {
+    if (!cats[g.cat]) cats[g.cat] = 0;
+    cats[g.cat] += Number(g.total) || 0;
+  });
+  const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+  const container = document.getElementById('cat-list');
+  if (sorted.length === 0) {
+    container.innerHTML = '<div class="loading"><span class="dot-anim">●</span> Sin datos de categorías</div>';
+    return;
+  }
+  const max = sorted[0][1];
+  container.innerHTML = sorted.map(([cat, amount]) => {
+    const pct = totalGastos > 0 ? (amount / totalGastos * 100).toFixed(1) : 0;
+    const barPct = max > 0 ? (amount / max * 100) : 0;
+    const color = CAT_COLORS[cat] || '#64748b';
+    return `
+      <div class="cat-item">
+        <div>
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
+            <span class="cat-dot" style="background:${color}"></span>
+            <span class="cat-name">${cat}</span>
+            <span class="cat-amount">${fmt(amount)}</span>
+            <small style="color:var(--text-muted);font-size:11px">${pct}%</small>
+          </div>
+          <div class="cat-bar-wrap">
+            <div class="cat-bar" style="width:${barPct}%;background:${color}"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function calcArqueo() {
+  const efectivo = parseFloat(document.getElementById('arq-efectivo').value) || 0;
+  const comprobantes = gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
+  const diferencia = efectivo + comprobantes - cfg.fondo;
+  const res = document.getElementById('arqueo-result');
+  res.style.display = 'block';
+  if (Math.abs(diferencia) < 1) {
+    res.className = 'arqueo-result arqueo-ok';
+    res.textContent = '✅ Arqueo Cuadrado — Diferencia: $0';
+  } else {
+    res.className = 'arqueo-result arqueo-fail';
+    res.textContent = `⚠ DIFERENCIA DE ARQUEO: ${fmt(Math.abs(diferencia))} ${diferencia > 0 ? '(sobrante)' : '(faltante)'}`;
+  }
+}
+</script>
+</body>
+</html>
