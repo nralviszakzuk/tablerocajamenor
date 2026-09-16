@@ -630,8 +630,7 @@
     <div class="form-actions">
       <button class="btn-add" onclick="agregarGasto()">Registrar Gasto</button>
       <button class="btn-sync" onclick="sincronizar()">↺ Sincronizar con Sheet</button>
-      <button class="btn-sync" onclick="limpiarDatosLocales()" style="color:var(--red);border-color:var(--red);">🗑 Limpiar datos locales</button>
-      <span class="sync-status" id="sync-status">Listo</span>
+      <span class="sync-status" id="sync-status">Conectando con Sheet...</span>
     </div>
   </div>
 
@@ -748,7 +747,8 @@ function doLogout() {
 })();
 
 // ============================================================
-// CONFIG
+// CONFIG — solo la configuración se guarda en localStorage
+// Los gastos SIEMPRE vienen del Google Sheet, nunca del navegador
 // ============================================================
 let cfg = {
   scriptUrl: '',
@@ -759,7 +759,10 @@ let cfg = {
   periodo: 'Semanal'
 };
 
-let gastos = [];
+// Borrar cualquier dato local de gastos que haya quedado antes
+localStorage.removeItem('cajaMenorGastos');
+
+let gastos = []; // SIEMPRE vacío al cargar — se llena solo desde el Sheet
 
 const CAT_COLORS = {
   'Transporte': '#3b82f6',
@@ -773,21 +776,24 @@ const CAT_COLORS = {
 };
 
 // ============================================================
-// INIT
+// INIT — carga config y sincroniza automáticamente con el Sheet
 // ============================================================
-window.onload = () => {
+window.onload = async () => {
+  // Cargar config (solo parámetros, nunca gastos)
   const saved = localStorage.getItem('cajaMenorCfg');
   if (saved) {
     cfg = { ...cfg, ...JSON.parse(saved) };
     applyConfig();
   }
-  const savedGastos = localStorage.getItem('cajaMenorGastos');
-  if (savedGastos) {
-    gastos = JSON.parse(savedGastos);
-    render();
-  }
-  // Set today's date
   document.getElementById('f-fecha').valueAsDate = new Date();
+  render(); // tablero vacío mientras carga
+
+  // Si hay URL configurada, sincronizar automáticamente al entrar
+  if (cfg.scriptUrl) {
+    await sincronizar(true);
+  } else {
+    showSync('⚠ Configura la URL del Apps Script para conectar con el Sheet', 'err');
+  }
 };
 
 function applyConfig() {
@@ -803,16 +809,17 @@ function applyConfig() {
 
 function saveConfig() {
   cfg.scriptUrl = document.getElementById('cfg-script-url').value.trim();
-  cfg.fondo = parseFloat(document.getElementById('cfg-fondo').value) || 0;
-  cfg.tope = parseFloat(document.getElementById('cfg-tope').value) || 0;
+  cfg.fondo     = parseFloat(document.getElementById('cfg-fondo').value) || 0;
+  cfg.tope      = parseFloat(document.getElementById('cfg-tope').value) || 0;
   cfg.reembolsoPct = parseFloat(document.getElementById('cfg-reembolso-pct').value) || 70;
-  cfg.custodio = document.getElementById('cfg-custodio').value.trim();
-  cfg.periodo = document.getElementById('cfg-periodo').value;
+  cfg.custodio  = document.getElementById('cfg-custodio').value.trim();
+  cfg.periodo   = document.getElementById('cfg-periodo').value;
+  // Solo guardamos la configuración, NUNCA los gastos
   localStorage.setItem('cajaMenorCfg', JSON.stringify(cfg));
   applyConfig();
-  render();
   toggleConfig();
-  showSync('✅ Configuración guardada', 'ok');
+  showSync('✅ Configuración guardada — sincronizando...', 'ok');
+  sincronizar(true);
 }
 
 function toggleConfig() {
@@ -830,56 +837,53 @@ function fmt(v) {
 
 function calcTotal() {
   const sub = parseFloat(document.getElementById('f-subtotal').value) || 0;
-  const iva = parseFloat(document.getElementById('f-iva').value) || 0;
+  const iva  = parseFloat(document.getElementById('f-iva').value)  || 0;
   document.getElementById('f-total').value = sub + iva;
 }
 
 // ============================================================
-// AGREGAR GASTO LOCAL
+// REGISTRAR GASTO — primero va al Sheet, luego refresca desde Sheet
 // ============================================================
 async function agregarGasto() {
-  const comp = document.getElementById('f-comp').value.trim();
-  const fecha = document.getElementById('f-fecha').value;
-  const prov = document.getElementById('f-prov').value.trim();
-  const nit = document.getElementById('f-nit').value.trim();
+  if (!cfg.scriptUrl) {
+    alert('⚠ Primero configura la URL del Apps Script en ⚙ Configurar.');
+    return;
+  }
+
+  const comp     = document.getElementById('f-comp').value.trim();
+  const fecha    = document.getElementById('f-fecha').value;
+  const prov     = document.getElementById('f-prov').value.trim();
+  const nit      = document.getElementById('f-nit').value.trim();
   const concepto = document.getElementById('f-concepto').value.trim();
-  const cat = document.getElementById('f-cat').value;
+  const cat      = document.getElementById('f-cat').value;
   const subtotal = parseFloat(document.getElementById('f-subtotal').value) || 0;
-  const iva = parseFloat(document.getElementById('f-iva').value) || 0;
-  const total = parseFloat(document.getElementById('f-total').value) || 0;
-  const soporte = document.getElementById('f-soporte').value;
+  const iva      = parseFloat(document.getElementById('f-iva').value)  || 0;
+  const total    = parseFloat(document.getElementById('f-total').value) || 0;
+  const soporte  = document.getElementById('f-soporte').value;
 
   if (!comp || !fecha || !prov || !concepto || !cat || total <= 0) {
-    alert('⚠ Por favor completa todos los campos obligatorios (Comprobante, Fecha, Proveedor, Concepto, Categoría y Total).');
+    alert('⚠ Completa todos los campos: Comprobante, Fecha, Proveedor, Concepto, Categoría y Total.');
     return;
   }
   if (cfg.tope > 0 && total > cfg.tope) {
-    if (!confirm(`⚠ El total $${total.toLocaleString()} supera el tope por transacción de ${fmt(cfg.tope)}. ¿Deseas registrarlo igualmente?`)) return;
+    if (!confirm(`⚠ El total ${fmt(total)} supera el tope (${fmt(cfg.tope)}). ¿Continuar?`)) return;
   }
   if (soporte === 'No') {
-    alert('⚠ Recuerda: No se permiten gastos sin soporte. Asegúrate de adjuntar el documento equivalente.');
+    alert('⚠ Recuerda: todo gasto debe tener soporte físico o digital.');
   }
+
+  showSync('⏳ Enviando al Google Sheet...', '');
 
   const gasto = { comp, fecha, prov, nit, concepto, cat, subtotal, iva, total, soporte };
-
-  // Guardar local primero
-  gastos.push(gasto);
-  localStorage.setItem('cajaMenorGastos', JSON.stringify(gastos));
-  limpiarForm();
-  render();
-
-  // Enviar al Sheet y esperar confirmación
-  if (!cfg.scriptUrl) {
-    showSync('⚠ Sin URL de Sheet — solo guardado local', 'err');
-    return;
-  }
-
-  showSync('⏳ Guardando en Google Sheet...', '');
   const ok = await enviarAlSheet(gasto);
+
   if (ok) {
-    showSync('✅ Guardado en Google Sheet', 'ok');
+    limpiarForm();
+    showSync('⏳ Guardado ✅ — Actualizando tablero desde Sheet...', 'ok');
+    // Refresca desde el Sheet para mostrar el estado real
+    await sincronizar(true);
   } else {
-    showSync('❌ No llegó al Sheet — revisa el Apps Script', 'err');
+    showSync('❌ Error: el gasto NO llegó al Sheet. Verifica el Apps Script.', 'err');
   }
 }
 
@@ -888,74 +892,66 @@ function limpiarForm() {
     document.getElementById(id).value = '';
   });
   document.getElementById('f-cat').value = '';
+  document.getElementById('f-soporte').value = 'Sí';
   document.getElementById('f-fecha').valueAsDate = new Date();
 }
 
 // ============================================================
-// SINCRONIZAR CON GOOGLE SHEET
+// SINCRONIZAR — única fuente de datos: el Google Sheet
 // ============================================================
-async function sincronizar() {
+async function sincronizar(silencioso = false) {
   if (!cfg.scriptUrl) {
-    alert('⚠ Primero configura la URL de tu Google Apps Script en ⚙ Configurar.');
+    alert('⚠ Configura la URL del Apps Script en ⚙ Configurar.');
     return;
   }
-  showSync('↺ Sincronizando...', '');
+  if (!silencioso) showSync('↺ Leyendo Google Sheet...', '');
   try {
     const resp = await fetch(cfg.scriptUrl + '?action=getAll');
-    const data = await resp.json();
-    if (data && data.gastos) {
-      gastos = data.gastos;
-      localStorage.setItem('cajaMenorGastos', JSON.stringify(gastos));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) {
+      throw new Error('Respuesta inválida del servidor: ' + text.slice(0, 100));
+    }
+    if (data && Array.isArray(data.gastos)) {
+      gastos = data.gastos; // reemplaza todo, nada local
       render();
       document.getElementById('last-update').textContent = new Date().toLocaleString('es-CO');
-      showSync('✅ Sincronizado con Sheet', 'ok');
+      showSync(`✅ ${gastos.length} registro(s) desde Sheet`, 'ok');
     } else {
-      showSync('⚠ Sin datos en Sheet', 'err');
+      gastos = [];
+      render();
+      showSync('⚠ Sheet vacío o sin datos', 'err');
     }
   } catch (e) {
-    // Si falla la red, igual mostramos los datos locales
+    gastos = [];
     render();
-    showSync('❌ Error de conexión — Datos locales', 'err');
+    showSync('❌ ' + e.message, 'err');
+    console.error('[CajaMenor] sincronizar error:', e);
   }
 }
 
-function limpiarDatosLocales() {
-  if (!confirm('¿Limpiar todos los datos locales del navegador? Esto NO borra el Google Sheet. Luego haz clic en Sincronizar para traer los datos del Sheet.')) return;
-  gastos = [];
-  localStorage.removeItem('cajaMenorGastos');
-  render();
-  showSync('🗑 Datos locales limpiados', '');
-}
-
-async function enviarAlSheet(gasto) {
-  if (!cfg.scriptUrl) return false;
+// ============================================================
+// ENVIAR AL SHEET — GET con parámetros (evita CORS)
+// ============================================================
+async function enviarAlSheet(g) {
   try {
     const params = new URLSearchParams({
-      action:   'addRow',
-      comp:     gasto.comp,
-      fecha:    gasto.fecha,
-      prov:     gasto.prov,
-      nit:      gasto.nit      || '',
-      concepto: gasto.concepto,
-      cat:      gasto.cat,
-      subtotal: gasto.subtotal,
-      iva:      gasto.iva,
-      total:    gasto.total,
-      soporte:  gasto.soporte
+      action: 'addRow',
+      comp: g.comp, fecha: g.fecha, prov: g.prov, nit: g.nit || '',
+      concepto: g.concepto, cat: g.cat,
+      subtotal: g.subtotal, iva: g.iva, total: g.total, soporte: g.soporte
     });
     const url = cfg.scriptUrl + '?' + params.toString();
-    console.log('[CajaMenor] Enviando a:', url);
+    console.log('[CajaMenor] POST →', url);
     const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const text = await resp.text();
-    console.log('[CajaMenor] Respuesta Sheet:', text);
-    let data;
-    try { data = JSON.parse(text); } catch(e) {
-      console.error('[CajaMenor] Respuesta no es JSON:', text);
-      return false;
-    }
+    console.log('[CajaMenor] Respuesta:', text);
+    const data = JSON.parse(text);
     return data.ok === true;
   } catch (e) {
-    console.error('[CajaMenor] Error de red:', e);
+    console.error('[CajaMenor] enviarAlSheet error:', e);
     return false;
   }
 }
@@ -972,51 +968,46 @@ function showSync(msg, type) {
 function render() {
   const totalGastos = gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
   const saldo = cfg.fondo - totalGastos;
-  const pct = cfg.fondo > 0 ? (totalGastos / cfg.fondo) * 100 : 0;
+  const pct   = cfg.fondo > 0 ? (totalGastos / cfg.fondo) * 100 : 0;
 
-  // KPIs
-  document.getElementById('val-saldo').textContent = fmt(saldo);
-  document.getElementById('sub-saldo').textContent = `Fondo asignado: ${fmt(cfg.fondo)}`;
-
+  document.getElementById('val-saldo').textContent  = fmt(saldo);
+  document.getElementById('sub-saldo').textContent  = `Fondo asignado: ${fmt(cfg.fondo)}`;
   document.getElementById('val-gastos').textContent = fmt(totalGastos);
   document.getElementById('sub-gastos').textContent = `${gastos.length} comprobante(s)`;
+  document.getElementById('val-pct').textContent    = pct.toFixed(1) + '%';
 
-  document.getElementById('val-pct').textContent = pct.toFixed(1) + '%';
   const bar = document.getElementById('pct-bar');
-  bar.style.width = Math.min(pct, 100) + '%';
-  bar.className = 'progress-bar' + (pct >= 90 ? ' danger' : pct >= cfg.reembolsoPct ? ' warn' : '');
+  bar.style.width  = Math.min(pct, 100) + '%';
+  bar.className    = 'progress-bar' + (pct >= 90 ? ' danger' : pct >= cfg.reembolsoPct ? ' warn' : '');
 
-  const pill = document.getElementById('val-estado-pill');
+  const pill   = document.getElementById('val-estado-pill');
+  const banner = document.getElementById('alert-banner');
   document.getElementById('sub-estado').textContent = `Tope por transacción: ${fmt(cfg.tope)}`;
 
-  const banner = document.getElementById('alert-banner');
   if (pct >= 90) {
     pill.className = 'kpi-status status-critico'; pill.textContent = '● Crítico';
     banner.style.display = 'flex';
-    document.getElementById('alert-text').textContent = `¡ALERTA! Fondo consumido al ${pct.toFixed(1)}%. Solicitar reembolso de inmediato.`;
+    document.getElementById('alert-text').textContent = `¡ALERTA! Fondo al ${pct.toFixed(1)}%. Solicitar reembolso de inmediato.`;
   } else if (pct >= cfg.reembolsoPct) {
     pill.className = 'kpi-status status-alerta'; pill.textContent = '● Alerta de Reembolso';
     banner.style.display = 'flex';
-    document.getElementById('alert-text').textContent = `Fondo ejecutado al ${pct.toFixed(1)}% — Supera el umbral de reembolso (${cfg.reembolsoPct}%). Gestionar reposición.`;
+    document.getElementById('alert-text').textContent = `Fondo ejecutado al ${pct.toFixed(1)}% — supera el umbral (${cfg.reembolsoPct}%). Gestionar reposición.`;
   } else {
     pill.className = 'kpi-status status-normal'; pill.textContent = '● Normal';
     banner.style.display = 'none';
   }
 
-  // TABLA
   renderTabla();
-  // CATEGORÍAS
   renderCategorias(totalGastos);
-  // ARQUEO
   document.getElementById('arq-comprobantes').textContent = fmt(totalGastos);
-  document.getElementById('arq-fondo').textContent = fmt(cfg.fondo);
+  document.getElementById('arq-fondo').textContent        = fmt(cfg.fondo);
 }
 
 function renderTabla() {
   const tbody = document.getElementById('tabla-body');
   document.getElementById('badge-total').textContent = gastos.length + ' registros';
   if (gastos.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Sin registros aún.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Sin registros en el Sheet aún.</td></tr>';
     return;
   }
   tbody.innerHTML = [...gastos].reverse().map(g => `
@@ -1040,20 +1031,20 @@ function renderCategorias(totalGastos) {
     if (!cats[g.cat]) cats[g.cat] = 0;
     cats[g.cat] += Number(g.total) || 0;
   });
-  const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+  const sorted    = Object.entries(cats).sort((a, b) => b[1] - a[1]);
   const container = document.getElementById('cat-list');
   if (sorted.length === 0) {
-    container.innerHTML = '<div class="loading"><span class="dot-anim">●</span> Sin datos de categorías</div>';
+    container.innerHTML = '<div class="loading"><span class="dot-anim">●</span> Sin datos</div>';
     return;
   }
   const max = sorted[0][1];
   container.innerHTML = sorted.map(([cat, amount]) => {
-    const pct = totalGastos > 0 ? (amount / totalGastos * 100).toFixed(1) : 0;
+    const pct    = totalGastos > 0 ? (amount / totalGastos * 100).toFixed(1) : 0;
     const barPct = max > 0 ? (amount / max * 100) : 0;
-    const color = CAT_COLORS[cat] || '#64748b';
+    const color  = CAT_COLORS[cat] || '#64748b';
     return `
       <div class="cat-item">
-        <div>
+        <div style="width:100%">
           <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
             <span class="cat-dot" style="background:${color}"></span>
             <span class="cat-name">${cat}</span>
@@ -1064,23 +1055,22 @@ function renderCategorias(totalGastos) {
             <div class="cat-bar" style="width:${barPct}%;background:${color}"></div>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
   }).join('');
 }
 
 function calcArqueo() {
-  const efectivo = parseFloat(document.getElementById('arq-efectivo').value) || 0;
-  const comprobantes = gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
-  const diferencia = efectivo + comprobantes - cfg.fondo;
-  const res = document.getElementById('arqueo-result');
-  res.style.display = 'block';
+  const efectivo      = parseFloat(document.getElementById('arq-efectivo').value) || 0;
+  const comprobantes  = gastos.reduce((s, g) => s + (Number(g.total) || 0), 0);
+  const diferencia    = efectivo + comprobantes - cfg.fondo;
+  const res           = document.getElementById('arqueo-result');
+  res.style.display   = 'block';
   if (Math.abs(diferencia) < 1) {
-    res.className = 'arqueo-result arqueo-ok';
+    res.className   = 'arqueo-result arqueo-ok';
     res.textContent = '✅ Arqueo Cuadrado — Diferencia: $0';
   } else {
-    res.className = 'arqueo-result arqueo-fail';
-    res.textContent = `⚠ DIFERENCIA DE ARQUEO: ${fmt(Math.abs(diferencia))} ${diferencia > 0 ? '(sobrante)' : '(faltante)'}`;
+    res.className   = 'arqueo-result arqueo-fail';
+    res.textContent = `⚠ DIFERENCIA: ${fmt(Math.abs(diferencia))} ${diferencia > 0 ? '(sobrante)' : '(faltante)'}`;
   }
 }
 </script>
