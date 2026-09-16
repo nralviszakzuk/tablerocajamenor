@@ -630,6 +630,7 @@
     <div class="form-actions">
       <button class="btn-add" onclick="agregarGasto()">Registrar Gasto</button>
       <button class="btn-sync" onclick="sincronizar()">↺ Sincronizar con Sheet</button>
+      <button class="btn-sync" onclick="limpiarDatosLocales()" style="color:var(--red);border-color:var(--red);">🗑 Limpiar datos locales</button>
       <span class="sync-status" id="sync-status">Listo</span>
     </div>
   </div>
@@ -909,16 +910,41 @@ async function sincronizar() {
   }
 }
 
+function limpiarDatosLocales() {
+  if (!confirm('¿Limpiar todos los datos locales del navegador? Esto NO borra el Google Sheet. Luego haz clic en Sincronizar para traer los datos del Sheet.')) return;
+  gastos = [];
+  localStorage.removeItem('cajaMenorGastos');
+  render();
+  showSync('🗑 Datos locales limpiados', '');
+}
+
 async function enviarAlSheet(gasto) {
   if (!cfg.scriptUrl) return;
   try {
-    await fetch(cfg.scriptUrl, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'addRow', gasto })
+    // Enviamos por GET con parámetros para evitar CORS
+    const params = new URLSearchParams({
+      action:   'addRow',
+      comp:     gasto.comp,
+      fecha:    gasto.fecha,
+      prov:     gasto.prov,
+      nit:      gasto.nit      || '',
+      concepto: gasto.concepto,
+      cat:      gasto.cat,
+      subtotal: gasto.subtotal,
+      iva:      gasto.iva,
+      total:    gasto.total,
+      soporte:  gasto.soporte
     });
-  } catch (e) { /* silencioso */ }
+    const resp = await fetch(cfg.scriptUrl + '?' + params.toString());
+    const data = await resp.json();
+    if (data.ok) {
+      showSync('✅ Guardado en Google Sheet', 'ok');
+    } else {
+      showSync('⚠ ' + (data.error || 'Error al guardar'), 'err');
+    }
+  } catch (e) {
+    showSync('❌ No se pudo guardar en Sheet', 'err');
+  }
 }
 
 function showSync(msg, type) {
