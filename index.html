@@ -29,6 +29,72 @@
     min-height: 100vh;
   }
 
+  /* LOGIN */
+  #login-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+  }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+  }
+  .login-icon {
+    width: 56px; height: 56px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    margin: 0 auto 18px;
+  }
+  .login-title { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 4px; }
+  .login-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+  .login-field { margin-bottom: 14px; text-align: left; }
+  .login-field label { display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .login-field input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .login-field input:focus { border-color: var(--accent); }
+  .btn-login {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: opacity .2s;
+  }
+  .btn-login:hover { opacity: .88; }
+  .login-error {
+    display: none;
+    background: rgba(239,68,68,.12);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+    color: var(--red);
+    margin-top: 12px;
+  }
+  .login-footer { font-size: 11px; color: var(--text-muted); margin-top: 20px; }
+
   /* HEADER */
   header {
     display: flex;
@@ -397,6 +463,27 @@
 </head>
 <body>
 
+<!-- LOGIN OVERLAY -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-icon">💰</div>
+    <div class="login-title">Caja Menor</div>
+    <div class="login-sub">Acceso restringido — Ingresa tus credenciales</div>
+    <div class="login-field">
+      <label>Usuario</label>
+      <input type="text" id="login-user" placeholder="usuario" autocomplete="username" />
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <button class="btn-login" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="login-error">Usuario o contraseña incorrectos</div>
+    <div class="login-footer">🔒 Acceso privado · Solo personal autorizado</div>
+  </div>
+</div>
+
 <header>
   <div class="logo">
     <div class="logo-icon">💰</div>
@@ -408,6 +495,7 @@
   <div class="header-right">
     <div class="custodio-badge">Custodio: <span id="custodio-name">—</span></div>
     <button class="btn-config" onclick="toggleConfig()">⚙ Configurar</button>
+    <button class="btn-config" onclick="doLogout()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);">🔒 Salir</button>
   </div>
 </header>
 
@@ -619,6 +707,45 @@
 </footer>
 
 <script>
+// ============================================================
+// LOGIN
+// ============================================================
+const VALID_USER = 'admin';
+const VALID_PASS = 'Kilo2029';
+
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
+  if (u === VALID_USER && p === VALID_PASS) {
+    sessionStorage.setItem('cm_auth', '1');
+    document.getElementById('login-overlay').style.display = 'none';
+    err.style.display = 'none';
+  } else {
+    err.style.display = 'block';
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-pass').focus();
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('cm_auth');
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+  setTimeout(() => document.getElementById('login-user').focus(), 100);
+}
+
+// Check session on load
+(function() {
+  if (sessionStorage.getItem('cm_auth') === '1') {
+    document.getElementById('login-overlay').style.display = 'none';
+  } else {
+    // Focus user field
+    setTimeout(() => document.getElementById('login-user').focus(), 100);
+  }
+})();
+
 // ============================================================
 // CONFIG
 // ============================================================
