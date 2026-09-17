@@ -137,6 +137,20 @@
   .btn-report{background:var(--sg-turqui);color:#fff;border:none;border-radius:7px;padding:8px 18px;font-size:11px;font-weight:700;font-family:var(--font);cursor:pointer;letter-spacing:.3px;display:flex;align-items:center;gap:5px;}
   .btn-report:hover{background:var(--sg-azul);}
 
+  /* MÓDULO RECARGAS */
+  .recarga-panel{background:#fff;border:1px solid var(--border);border-top:3px solid var(--green);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+  .recarga-panel h3{font-size:11px;font-weight:700;margin-bottom:12px;color:#1a7f5a;text-transform:uppercase;letter-spacing:.6px;}
+  .recarga-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px;}
+  .btn-recarga{background:#1a7f5a;color:#fff;border:none;border-radius:7px;padding:8px 18px;font-size:11px;font-weight:700;font-family:var(--font);cursor:pointer;letter-spacing:.3px;}
+  .btn-recarga:hover{opacity:.88;}
+  .recarga-hist{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+  .recarga-hist h4{font-size:10px;font-weight:700;color:#1a7f5a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  .recarga-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f1f5;font-size:12px;}
+  .recarga-item .ri-monto{font-weight:700;color:#1a7f5a;margin-left:auto;white-space:nowrap;}
+  .recarga-item .ri-fecha{color:#aaa;font-size:10px;}
+  .recarga-item .ri-quien{background:#e8f5f0;color:#1a7f5a;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;}
+  .kpi-card.c-recarga::before{background:var(--green);}
+
   footer{background:var(--sg-turqui);color:rgba(255,255,255,.45);padding:11px 26px;font-size:10px;text-align:center;border-top:3px solid var(--sg-rojo);letter-spacing:.4px;}
   ::-webkit-scrollbar{width:4px;height:4px;} ::-webkit-scrollbar-thumb{background:#ccc;border-radius:4px;}
   .loading{text-align:center;padding:22px;color:#aaa;font-size:11px;}
@@ -195,11 +209,48 @@
 <div id="alert-banner" style="display:none;">⚠ <span id="alert-text"></span></div>
 
 <!-- KPI -->
-<div class="kpi-grid">
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
   <div class="kpi-card c-verde"><div class="kpi-label">Saldo Disponible</div><div class="kpi-value" id="val-saldo">$ 0</div><div class="kpi-sub" id="sub-saldo">Fondo asignado: $ 0</div></div>
   <div class="kpi-card c-rojo"><div class="kpi-label">Total Gastos</div><div class="kpi-value" id="val-gastos">$ 0</div><div class="kpi-sub" id="sub-gastos">0 comprobantes</div></div>
+  <div class="kpi-card c-recarga"><div class="kpi-label">Total Recargas</div><div class="kpi-value" id="val-recargas" style="color:var(--green)">$ 0</div><div class="kpi-sub" id="sub-recargas">0 reembolso(s)</div></div>
   <div class="kpi-card"><div class="kpi-label">Ejecución del Fondo</div><div class="kpi-value" id="val-pct">0%</div><div class="progress-bar-wrap"><div class="progress-bar" id="pct-bar" style="width:0%"></div></div></div>
   <div class="kpi-card"><div class="kpi-label">Estado del Fondo</div><div id="val-estado-pill" class="kpi-status status-normal">● Normal</div><div class="kpi-sub" id="sub-estado">Tope: $ 0</div></div>
+</div>
+
+<!-- MÓDULO RECARGAS -->
+<div class="recarga-panel">
+  <h3>💵 Módulo de Recargas / Reembolsos del Fondo</h3>
+  <div class="recarga-grid">
+    <div class="form-field">
+      <label>Fecha de Recarga</label>
+      <input type="date" id="rc-fecha" />
+    </div>
+    <div class="form-field">
+      <label>Monto Recargado ($)</label>
+      <input type="number" id="rc-monto" placeholder="0" />
+    </div>
+    <div class="form-field">
+      <label>Quien Entrega</label>
+      <input type="text" id="rc-quien" placeholder="Nombre de quien entrega" />
+    </div>
+    <div class="form-field">
+      <label>Concepto / Referencia</label>
+      <input type="text" id="rc-concepto" placeholder="Ej: Reembolso mes septiembre" />
+    </div>
+    <div class="form-field">
+      <label>N° Comprobante Reembolso</label>
+      <input type="text" id="rc-comp" placeholder="Ej: RB-001" />
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn-recarga" onclick="registrarRecarga()">💵 REGISTRAR RECARGA</button>
+    <span class="sync-status" id="rc-status"></span>
+  </div>
+  <!-- Historial de recargas -->
+  <div class="recarga-hist" id="rc-hist" style="display:none">
+    <h4>Historial de Recargas</h4>
+    <div id="rc-lista"></div>
+  </div>
 </div>
 
 <!-- FORM -->
@@ -322,6 +373,7 @@ function doLogout(){sessionStorage.removeItem('cm_auth');sessionStorage.removeIt
 
 let cfg={scriptUrl:'',fondo:0,tope:0,reembolsoPct:70,custodio:'Sin definir',periodo:'Semanal'};
 let gastos=[];
+let recargas=[];
 localStorage.removeItem('cajaMenorGastos');
 
 const CAT_COLORS={'Transporte':'#2E3192','Papelería':'#1B1D63','Aseo y Cafetería':'#1a7f5a','Alimentación':'#E4231B','Mensajería':'#6B6F76','Servicios Públicos':'#b45309','Mantenimiento':'#7c3aed','Otros':'#111318','Otro':'#111318'};
@@ -370,6 +422,49 @@ function calcTotal(){const sub=parseFloat(document.getElementById('f-subtotal').
 function toggleOtro(){const v=document.getElementById('f-cat').value;document.getElementById('otro-campo').style.display=v==='Otro'?'block':'none';if(v!=='Otro')document.getElementById('f-cat-otro').value='';}
 function actualizarComprobante(){document.getElementById('f-comp').value=getNextComprobante();}
 
+  document.getElementById('rc-fecha').valueAsDate=new Date();
+
+async function registrarRecarga(){
+  if(!cfg.scriptUrl){alert('Primero configura la URL del Apps Script.');return;}
+  const fecha   = document.getElementById('rc-fecha').value;
+  const monto   = parseFloat(document.getElementById('rc-monto').value)||0;
+  const quien   = document.getElementById('rc-quien').value.trim();
+  const concepto= document.getElementById('rc-concepto').value.trim();
+  const comp    = document.getElementById('rc-comp').value.trim()||('RB-'+Date.now());
+  if(!fecha||monto<=0||!quien){alert('Completa: Fecha, Monto y Quien Entrega.');return;}
+  const rcStatus=document.getElementById('rc-status');
+  rcStatus.textContent='Enviando recarga al Sheet...'; rcStatus.className='sync-status';
+  // Enviar al Sheet (hoja Recargas)
+  const params=new URLSearchParams({action:'addRecarga',comp,fecha,quien,concepto,monto});
+  try{
+    const r=await fetch(cfg.scriptUrl+'?'+params.toString());
+    const d=JSON.parse(await r.text());
+    if(d.ok){
+      ['rc-monto','rc-quien','rc-concepto','rc-comp'].forEach(id=>document.getElementById(id).value='');
+      document.getElementById('rc-fecha').valueAsDate=new Date();
+      rcStatus.textContent='✅ Recarga guardada en Sheet'; rcStatus.className='sync-status sync-ok';
+      await sincronizar(true);
+    }else{rcStatus.textContent='❌ Error al guardar recarga'; rcStatus.className='sync-status sync-err';}
+  }catch(e){rcStatus.textContent='❌ '+e.message; rcStatus.className='sync-status sync-err';}
+}
+
+function renderRecargas(){
+  const total=recargas.reduce((s,r)=>s+(Number(r.monto)||0),0);
+  document.getElementById('val-recargas').textContent=fmt(total);
+  document.getElementById('sub-recargas').textContent=recargas.length+' reembolso(s)';
+  const hist=document.getElementById('rc-hist');
+  const lista=document.getElementById('rc-lista');
+  if(!recargas.length){hist.style.display='none';return;}
+  hist.style.display='block';
+  lista.innerHTML=[...recargas].reverse().map(r=>`
+    <div class="recarga-item">
+      <span class="ri-quien">${r.quien}</span>
+      <span>${r.concepto||r.comp}</span>
+      <span class="ri-fecha">${r.fecha}</span>
+      <span class="ri-monto">${fmt(r.monto)}</span>
+    </div>`).join('');
+}
+
 async function agregarGasto(){
   if(!cfg.scriptUrl){alert('Primero configura la URL del Apps Script en Configurar.');return;}
   const comp=document.getElementById('f-comp').value.trim();
@@ -408,11 +503,13 @@ async function sincronizar(silencioso=false){
     if(!resp.ok)throw new Error('HTTP '+resp.status);
     const data=JSON.parse(await resp.text());
     if(data&&Array.isArray(data.gastos)){
-      gastos=data.gastos;render();actualizarComprobante();
+      gastos=data.gastos;
+      recargas=Array.isArray(data.recargas)?data.recargas:[];
+      render();actualizarComprobante();
       document.getElementById('last-update').textContent=new Date().toLocaleString('es-CO');
-      showSync(gastos.length+' registro(s) desde Sheet','ok');
-    }else{gastos=[];render();actualizarComprobante();showSync('Sheet vacio','err');}
-  }catch(e){gastos=[];render();actualizarComprobante();showSync('Error: '+e.message,'err');}
+      showSync(gastos.length+' gasto(s) · '+recargas.length+' recarga(s)','ok');
+    }else{gastos=[];recargas=[];render();actualizarComprobante();showSync('Sheet vacio','err');}
+  }catch(e){gastos=[];recargas=[];render();actualizarComprobante();showSync('Error: '+e.message,'err');}
 }
 
 async function enviarAlSheet(g){
@@ -427,10 +524,15 @@ async function enviarAlSheet(g){
 function showSync(msg,type){const el=document.getElementById('sync-status');el.textContent=msg;el.className='sync-status '+(type==='ok'?'sync-ok':type==='err'?'sync-err':'');}
 
 function render(){
-  const total=gastos.reduce((s,g)=>s+(Number(g.total)||0),0);
-  const saldo=cfg.fondo-total;const pct=cfg.fondo>0?(total/cfg.fondo*100):0;
-  document.getElementById('val-saldo').textContent=fmt(saldo);document.getElementById('sub-saldo').textContent='Fondo asignado: '+fmt(cfg.fondo);
-  document.getElementById('val-gastos').textContent=fmt(total);document.getElementById('sub-gastos').textContent=gastos.length+' comprobante(s)';
+  const totalGastos=gastos.reduce((s,g)=>s+(Number(g.total)||0),0);
+  const totalRec   =recargas.reduce((s,r)=>s+(Number(r.monto)||0),0);
+  const fondoReal  =cfg.fondo+totalRec;
+  const saldo      =fondoReal-totalGastos;
+  const pct        =fondoReal>0?(totalGastos/fondoReal*100):0;
+  document.getElementById('val-saldo').textContent=fmt(saldo);
+  document.getElementById('sub-saldo').textContent='Fondo: '+fmt(cfg.fondo)+' + Recargas: '+fmt(totalRec);
+  document.getElementById('val-gastos').textContent=fmt(totalGastos);
+  document.getElementById('sub-gastos').textContent=gastos.length+' comprobante(s)';
   document.getElementById('val-pct').textContent=pct.toFixed(1)+'%';
   const bar=document.getElementById('pct-bar');bar.style.width=Math.min(pct,100)+'%';bar.className='progress-bar'+(pct>=90?' danger':pct>=cfg.reembolsoPct?' warn':'');
   const pill=document.getElementById('val-estado-pill');const banner=document.getElementById('alert-banner');
@@ -438,8 +540,9 @@ function render(){
   if(pct>=90){pill.className='kpi-status status-critico';pill.textContent='● Critico';banner.style.display='flex';document.getElementById('alert-text').textContent='ALERTA! Fondo al '+pct.toFixed(1)+'%. Solicitar reembolso de inmediato.';}
   else if(pct>=cfg.reembolsoPct){pill.className='kpi-status status-alerta';pill.textContent='● Alerta Reembolso';banner.style.display='flex';document.getElementById('alert-text').textContent='Fondo al '+pct.toFixed(1)+'% - supera umbral ('+cfg.reembolsoPct+'%). Gestionar reposicion.';}
   else{pill.className='kpi-status status-normal';pill.textContent='● Normal';banner.style.display='none';}
-  renderTabla();renderCategorias(total);
-  document.getElementById('arq-comprobantes').textContent=fmt(total);document.getElementById('arq-fondo').textContent=fmt(cfg.fondo);
+  renderTabla();renderCategorias(totalGastos);renderRecargas();
+  document.getElementById('arq-comprobantes').textContent=fmt(totalGastos);
+  document.getElementById('arq-fondo').textContent=fmt(fondoReal);
 }
 
 function renderTabla(){
