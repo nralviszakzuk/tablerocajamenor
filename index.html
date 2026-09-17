@@ -289,6 +289,7 @@
   <div class="report-grid">
     <div class="report-field"><label>Tipo de Informe</label>
       <select id="rpt-tipo" onchange="toggleRptCampos()">
+        <option value="diario">Diario</option>
         <option value="semanal">Semanal</option>
         <option value="mensual" selected>Mensual</option>
         <option value="trimestral">Trimestral</option>
@@ -296,6 +297,7 @@
         <option value="anual">Anual</option>
       </select>
     </div>
+    <div class="report-field" id="rpt-dia-wrap"><label>Fecha</label><input type="date" id="rpt-dia" /></div>
     <div class="report-field" id="rpt-semana-wrap" style="display:none"><label>Semana (lunes inicio)</label><input type="date" id="rpt-semana" /></div>
     <div class="report-field" id="rpt-mes-wrap"><label>Mes</label>
       <select id="rpt-mes"><option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option><option value="9" selected>Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select>
@@ -388,6 +390,7 @@ window.onload=async()=>{
   const s=localStorage.getItem('cajaMenorCfg');
   if(s){cfg={...cfg,...JSON.parse(s)};applyConfig();}
   document.getElementById('f-fecha').valueAsDate=new Date();
+  document.getElementById('rpt-dia').valueAsDate=new Date();
   const hoy=new Date();const lun=new Date(hoy);lun.setDate(hoy.getDate()-((hoy.getDay()+6)%7));
   document.getElementById('rpt-semana').value=lun.toISOString().slice(0,10);
   render();
@@ -586,30 +589,47 @@ const SG_T=[27,29,99],SG_A=[46,49,146],SG_R=[228,35,27],SG_GC=[244,245,249],SG_B
 
 function toggleRptCampos(){
   const t=document.getElementById('rpt-tipo').value;
-  document.getElementById('rpt-semana-wrap').style.display=t==='semanal'?'':'none';
-  document.getElementById('rpt-mes-wrap').style.display=t==='mensual'?'':'none';
-  document.getElementById('rpt-trim-wrap').style.display=t==='trimestral'?'':'none';
-  document.getElementById('rpt-sem-wrap').style.display=t==='semestral'?'':'none';
+  document.getElementById('rpt-dia-wrap').style.display    = t==='diario'     ?'':'none';
+  document.getElementById('rpt-semana-wrap').style.display = t==='semanal'    ?'':'none';
+  document.getElementById('rpt-mes-wrap').style.display    = t==='mensual'    ?'':'none';
+  document.getElementById('rpt-trim-wrap').style.display   = t==='trimestral' ?'':'none';
+  document.getElementById('rpt-sem-wrap').style.display    = t==='semestral'  ?'':'none';
 }
 
-function filtrarPeriodo(tipo,anio,mes,trim,sem,semIso){
+function filtrarPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso){
   return gastos.filter(g=>{
     const f=new Date(g.fecha+'T00:00:00');
+    if(tipo==='diario')  return g.fecha===diaIso;
     if(tipo==='semanal'){const lun=new Date(semIso+'T00:00:00');const dom=new Date(lun);dom.setDate(lun.getDate()+6);return f>=lun&&f<=dom;}
     if(f.getFullYear()!==anio)return false;
     const m=f.getMonth()+1;
-    if(tipo==='mensual')return m===mes;
+    if(tipo==='mensual')    return m===mes;
     if(tipo==='trimestral'){const r={1:[1,2,3],2:[4,5,6],3:[7,8,9],4:[10,11,12]};return(r[trim]||[]).includes(m);}
-    if(tipo==='semestral')return sem===1?m<=6:m>=7;
+    if(tipo==='semestral') return sem===1?m<=6:m>=7;
     return true;
   });
 }
 
-function tituloPeriodo(tipo,anio,mes,trim,sem,semIso){
+function filtrarRecargasPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso){
+  return recargas.filter(r=>{
+    const f=new Date(r.fecha+'T00:00:00');
+    if(tipo==='diario')  return r.fecha===diaIso;
+    if(tipo==='semanal'){const lun=new Date(semIso+'T00:00:00');const dom=new Date(lun);dom.setDate(lun.getDate()+6);return f>=lun&&f<=dom;}
+    if(f.getFullYear()!==anio)return false;
+    const m=f.getMonth()+1;
+    if(tipo==='mensual')    return m===mes;
+    if(tipo==='trimestral'){const rr={1:[1,2,3],2:[4,5,6],3:[7,8,9],4:[10,11,12]};return(rr[trim]||[]).includes(m);}
+    if(tipo==='semestral') return sem===1?m<=6:m>=7;
+    return true;
+  });
+}
+
+function tituloPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso){
+  if(tipo==='diario'){const f=new Date(diaIso+'T00:00:00');return f.toLocaleDateString('es-CO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});}
   if(tipo==='semanal'){const lun=new Date(semIso+'T00:00:00');const dom=new Date(lun);dom.setDate(lun.getDate()+6);return 'Semana '+lun.toLocaleDateString('es-CO')+' al '+dom.toLocaleDateString('es-CO');}
-  if(tipo==='mensual')return MESES[mes]+' '+anio;
-  if(tipo==='trimestral')return 'Trimestre '+trim+' - '+anio;
-  if(tipo==='semestral')return 'Semestre '+sem+' - '+anio;
+  if(tipo==='mensual')    return MESES[mes]+' '+anio;
+  if(tipo==='trimestral') return 'Trimestre '+trim+' - '+anio;
+  if(tipo==='semestral')  return 'Semestre '+sem+' - '+anio;
   return 'Año '+anio;
 }
 
@@ -620,6 +640,7 @@ async function generarPDF(){
   const trim=parseInt(document.getElementById('rpt-trim').value);
   const sem=parseInt(document.getElementById('rpt-sem').value);
   const semIso=document.getElementById('rpt-semana').value;
+  const diaIso=document.getElementById('rpt-dia').value||new Date().toISOString().slice(0,10);
   const empresa=document.getElementById('rpt-empresa').value.trim()||'Sistemas Globales Cartagena S.A.S.';
   const rptSt=document.getElementById('rpt-status');
   rptSt.textContent='Generando PDF...';
@@ -628,13 +649,17 @@ async function generarPDF(){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   const W=210,M=14;let Y=0;
-  const datos=filtrarPeriodo(tipo,anio,mes,trim,sem,semIso);
-  const titulo=tituloPeriodo(tipo,anio,mes,trim,sem,semIso);
-  const totalG=datos.reduce((s,g)=>s+(Number(g.total)||0),0);
-  const subT=datos.reduce((s,g)=>s+(Number(g.subtotal)||0),0);
-  const ivaT=datos.reduce((s,g)=>s+(Number(g.iva)||0),0);
-  const saldo=cfg.fondo-totalG;
-  const pct=cfg.fondo>0?(totalG/cfg.fondo*100):0;
+  const datos=filtrarPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso);
+  const recPeriodo=filtrarRecargasPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso);
+  const titulo=tituloPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso);
+  const totalG  =datos.reduce((s,g)=>s+(Number(g.total)||0),0);
+  const subT    =datos.reduce((s,g)=>s+(Number(g.subtotal)||0),0);
+  const ivaT    =datos.reduce((s,g)=>s+(Number(g.iva)||0),0);
+  const totalRec=recPeriodo.reduce((s,r)=>s+(Number(r.monto)||0),0);
+  const totalRecTodo=recargas.reduce((s,r)=>s+(Number(r.monto)||0),0);
+  const fondoBase=cfg.fondo>0?cfg.fondo+totalRecTodo:totalRecTodo;
+  const saldo   =fondoBase-gastos.reduce((s,g)=>s+(Number(g.total)||0),0);
+  const pct=fondoBase>0?(totalG/fondoBase*100):0;
   const sinSop=datos.filter(g=>g.soporte!=='Si'&&g.soporte!=='Sí').length;
   const estado=pct<70?'Normal':pct<90?'Alerta de Reembolso':'CRITICO';
   const kpiC=pct<70?[5,150,105]:pct<90?[180,83,9]:SG_R;
@@ -740,11 +765,64 @@ async function generarPDF(){
     Y=doc.lastAutoTable.finalY+6;
   }
 
+  // Sin soporte
+  if(sinSop>0){
+    if(Y>225){doc.addPage();Y=14;}
+    doc.setDrawColor(...SG_R);doc.line(M,Y,W-M,Y);Y+=5;
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...SG_R);doc.text('GASTOS SIN SOPORTE - REQUIEREN GESTION ('+sinSop+')',M,Y);Y+=4;
+    const sinSopRows=datos.filter(g=>g.soporte!=='Si'&&g.soporte!=='Sí').map(g=>[g.comp,g.fecha,g.prov,g.concepto,g.cat,fmtN(g.total)]);
+    doc.autoTable({startY:Y,head:[['Comp.','Fecha','Proveedor','Concepto','Categoria','Total']],body:sinSopRows,margin:{left:M,right:M},styles:{fontSize:8,cellPadding:3,textColor:SG_N},headStyles:{fillColor:SG_R,textColor:[255,255,255],fontStyle:'bold'},alternateRowStyles:{fillColor:[255,240,239]}});
+    Y=doc.lastAutoTable.finalY+6;
+  }
+
+  // Recargas del periodo
+  if(Y>220){doc.addPage();Y=14;}
+  doc.setDrawColor(...SG_BD);doc.line(M,Y,W-M,Y);Y+=5;
+  doc.setFillColor(16,127,90);doc.rect(M,Y-1,W-M*2,8,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(255,255,255);
+  doc.text('RECARGAS / REEMBOLSOS DEL PERIODO ('+recPeriodo.length+')',M+2,Y+5);Y+=12;
+  if(recPeriodo.length===0){
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...SG_N);
+    doc.text('No se registraron recargas en este periodo.',M,Y);Y+=8;
+  }else{
+    const recRows=recPeriodo.sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(r=>[r.comp,r.fecha,r.quien||'—',r.concepto||'—',fmtN(r.monto)]);
+    recRows.push(['','','','TOTAL RECARGAS',fmtN(totalRec)]);
+    doc.autoTable({startY:Y,head:[['Comp.','Fecha','Quien Entrega','Concepto','Monto']],body:recRows,margin:{left:M,right:M},styles:{fontSize:8,cellPadding:3,textColor:SG_N},headStyles:{fillColor:[16,127,90],textColor:[255,255,255],fontStyle:'bold',fontSize:8},alternateRowStyles:{fillColor:[232,245,240]},columnStyles:{4:{halign:'right',fontStyle:'bold'}},didParseCell:(d)=>{if(d.row.index===recRows.length-1){d.cell.styles.fontStyle='bold';d.cell.styles.fillColor=[232,245,240];d.cell.styles.textColor=[16,127,90];}}});
+    Y=doc.lastAutoTable.finalY+6;
+  }
+
+  // Resumen financiero del periodo
+  if(Y>230){doc.addPage();Y=14;}
+  doc.setDrawColor(...SG_BD);doc.line(M,Y,W-M,Y);Y+=5;
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...SG_A);doc.text('BALANCE DEL PERIODO',M,Y);Y+=4;
+  const balRows=[
+    ['Recargas recibidas en el periodo',fmtN(totalRec)],
+    ['(-) Total gastos del periodo',fmtN(totalG)],
+    ['(=) Resultado del periodo',fmtN(totalRec-totalG)],
+    ['',''],
+    ['Total acumulado recargado (histórico)',fmtN(totalRecTodo)],
+    ['Total acumulado gastado (histórico)',fmtN(gastos.reduce((s,g)=>s+(Number(g.total)||0),0))],
+    ['Saldo disponible actual',fmtN(saldo)],
+  ];
+  doc.autoTable({startY:Y,head:[['Concepto','Valor']],body:balRows,margin:{left:M,right:M},styles:{fontSize:9,cellPadding:4,textColor:SG_N},headStyles:{fillColor:SG_T,textColor:[255,255,255],fontStyle:'bold'},alternateRowStyles:{fillColor:SG_GC},columnStyles:{1:{halign:'right',fontStyle:'bold'}},didParseCell:(d)=>{
+    if(d.row.index===2){d.cell.styles.textColor=(totalRec-totalG)>=0?[16,127,90]:SG_R;d.cell.styles.fontStyle='bold';}
+    if(d.row.index===6){d.cell.styles.textColor=saldo>=0?[16,127,90]:SG_R;d.cell.styles.fontStyle='bold';}
+  }});
+  Y=doc.lastAutoTable.finalY+6;
+
   // Notas
   if(Y>240){doc.addPage();Y=14;}
   doc.setDrawColor(...SG_BD);doc.line(M,Y,W-M,Y);Y+=5;
   doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...SG_A);doc.text('NOTAS DE CONTROL INTERNO',M,Y);Y+=5;
-  const notas=['• Fondo fijo asignado: '+fmtN(cfg.fondo)+'   |   Tope maximo por transaccion: '+fmtN(cfg.tope),'• Total ejecutado en el periodo: '+fmtN(totalG)+' ('+pct.toFixed(1)+'%)','• Saldo disponible al cierre del periodo: '+fmtN(saldo),'• Registros sin soporte: '+sinSop+(sinSop>0?' ⚠ REQUIERE GESTION':'  ✓ Todo en orden'),'• IVA total reconocido (19%): '+fmtN(ivaT)+'   |   Estado del fondo: '+estado,'• Los valores corresponden a gastos con cargo a Caja Menor, soportados segun normativa vigente.'];
+  const notas=[
+    '• Recargas recibidas en el periodo: '+fmtN(totalRec)+'   |   Total gastos del periodo: '+fmtN(totalG),
+    '• Resultado del periodo: '+fmtN(totalRec-totalG)+(totalRec-totalG>=0?' (positivo)':' (negativo)'),
+    '• Saldo disponible actual del fondo: '+fmtN(saldo),
+    '• Tope maximo por transaccion: '+fmtN(cfg.tope)+'   |   Estado: '+estado,
+    '• Registros sin soporte: '+sinSop+(sinSop>0?' ⚠ REQUIERE GESTION INMEDIATA':'  ✓ Todo en orden'),
+    '• IVA total reconocido (19%): '+fmtN(ivaT),
+    '• Los valores corresponden a gastos con cargo a Caja Menor, soportados segun normativa vigente.',
+  ];
   doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...SG_N);
   notas.forEach(n=>{doc.text(n,M,Y);Y+=5;});Y+=6;
 
