@@ -271,16 +271,16 @@
       </select>
     </div>
     <div class="form-field" id="otro-campo"><label>Especificar categoría</label><input type="text" id="f-cat-otro" placeholder="Escribe la categoría..." /></div>
-    <div class="form-field"><label>Valor / Subtotal</label><input type="number" id="f-subtotal" placeholder="0" oninput="calcTotal()" /></div>
+    <div class="form-field"><label>Valor Total a Pagar ($)</label><input type="number" id="f-total" placeholder="0" oninput="calcDesdeTotal()" style="font-weight:700;border-color:var(--sg-azul);" /></div>
     <div class="form-field">
-      <label>¿Aplica IVA 19%?</label>
-      <select id="f-iva-aplica" onchange="calcTotal()" style="border-color:var(--border)">
+      <label>¿Incluye IVA 19%?</label>
+      <select id="f-iva-aplica" onchange="calcDesdeTotal()" style="border-color:var(--border)">
         <option value="no">❌ Sin IVA</option>
-        <option value="si">✅ Con IVA 19%</option>
+        <option value="si">✅ Sí incluye IVA 19%</option>
       </select>
     </div>
-    <div class="form-field"><label>IVA (automático)</label><input type="number" id="f-iva" readonly placeholder="0" /></div>
-    <div class="form-field"><label>Total</label><input type="number" id="f-total" readonly placeholder="0" /></div>
+    <div class="form-field"><label>Base Gravable (automático)</label><input type="number" id="f-subtotal" readonly placeholder="0" /></div>
+    <div class="form-field"><label>IVA 19% (automático)</label><input type="number" id="f-iva" readonly placeholder="0" /></div>
     <div class="form-field"><label>¿Tiene Soporte?</label><select id="f-soporte"><option value="Sí">✅ Sí tiene soporte</option><option value="No">❌ Sin soporte</option></select></div>
   </div>
   <div class="form-actions">
@@ -445,7 +445,19 @@ function saveConfig(){
 }
 function toggleConfig(){const p=document.getElementById('config-panel');p.style.display=p.style.display==='none'||p.style.display===''?'block':'none';}
 function fmt(v){if(isNaN(v)||v===null)return '$ 0';return '$ '+Number(v).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});}
-function calcTotal(){const sub=parseFloat(document.getElementById('f-subtotal').value)||0;const aplicaIva=document.getElementById('f-iva-aplica').value==='si';const iva=aplicaIva?Math.round(sub*0.19):0;document.getElementById('f-iva').value=iva;document.getElementById('f-total').value=sub+iva;}
+function calcDesdeTotal(){
+  const total     = parseFloat(document.getElementById('f-total').value)||0;
+  const aplicaIva = document.getElementById('f-iva-aplica').value==='si';
+  if(aplicaIva){
+    const base = Math.round(total/1.19);
+    const iva  = total - base;
+    document.getElementById('f-subtotal').value = base;
+    document.getElementById('f-iva').value      = iva;
+  } else {
+    document.getElementById('f-subtotal').value = total;
+    document.getElementById('f-iva').value      = 0;
+  }
+}
 function toggleOtro(){const v=document.getElementById('f-cat').value;document.getElementById('otro-campo').style.display=v==='Otro'?'block':'none';if(v!=='Otro')document.getElementById('f-cat-otro').value='';}
 function actualizarComprobante(){document.getElementById('f-comp').value=getNextComprobante();}
 
@@ -516,7 +528,7 @@ async function agregarGasto(){
 }
 
 function limpiarForm(){
-  ['f-prov','f-nit','f-concepto','f-subtotal','f-iva','f-total','f-cat-otro'].forEach(id=>document.getElementById(id).value='');
+  ['f-prov','f-nit','f-concepto','f-total','f-subtotal','f-iva','f-cat-otro'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-cat').value='';
   document.getElementById('f-soporte').value='Si';
   document.getElementById('f-iva-aplica').value='no';
