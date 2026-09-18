@@ -279,6 +279,7 @@
   <div class="form-actions">
     <button class="btn-add" onclick="agregarGasto()">REGISTRAR GASTO</button>
     <button class="btn-sync" onclick="sincronizar(false)">↺ Sincronizar Sheet</button>
+    <span id="sync-timer" style="font-size:10px;color:#aaa;margin-left:4px;"></span>
     <span class="sync-status" id="sync-status">Conectando...</span>
   </div>
 </div>
@@ -397,6 +398,22 @@ window.onload=async()=>{
   if(cfg.scriptUrl)await sincronizar(true);
   else showSync('⚠ Configura la URL del Apps Script para conectar con el Sheet','err');
   actualizarComprobante();
+
+  // ── Auto-sincronización cada 30 segundos con contador ──
+  let cuenta = 30;
+  const timer = document.getElementById('sync-timer');
+  setInterval(()=>{
+    cuenta--;
+    if(timer) timer.textContent = 'Actualizando en '+cuenta+'s';
+    if(cuenta <= 0) cuenta = 30;
+  }, 1000);
+
+  setInterval(async()=>{
+    if(cfg.scriptUrl && sessionStorage.getItem('cm_auth')==='1'){
+      await sincronizar(true);
+      cuenta = 30;
+    }
+  }, 30000);
 };
 
 function applyConfig(){
