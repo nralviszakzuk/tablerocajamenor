@@ -635,10 +635,30 @@ function toggleRptCampos(){
   document.getElementById('rpt-sem-wrap').style.display    = t==='semestral'  ?'':'none';
 }
 
+// ── Normaliza cualquier fecha a yyyy-MM-dd ──
+function normFecha(f){
+  if(!f) return '';
+  const s=String(f).trim();
+  // ya es yyyy-MM-dd
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // dd/MM/yyyy
+  if(/^\d{2}\/\d{2}\/\d{4}/.test(s)){
+    const [d,m,y]=s.split('/');
+    return y+'-'+m.padStart(2,'0')+'-'+d.padStart(2,'0');
+  }
+  // intento genérico
+  try{
+    const dt=new Date(s);
+    if(!isNaN(dt)) return dt.toISOString().slice(0,10);
+  }catch(e){}
+  return s.slice(0,10);
+}
+
 function filtrarPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso){
   return gastos.filter(g=>{
-    const f=new Date(g.fecha+'T00:00:00');
-    if(tipo==='diario')  return g.fecha===diaIso;
+    const fecha=normFecha(g.fecha);
+    const f=new Date(fecha+'T00:00:00');
+    if(tipo==='diario')  return fecha===diaIso;
     if(tipo==='semanal'){const lun=new Date(semIso+'T00:00:00');const dom=new Date(lun);dom.setDate(lun.getDate()+6);return f>=lun&&f<=dom;}
     if(f.getFullYear()!==anio)return false;
     const m=f.getMonth()+1;
@@ -651,8 +671,9 @@ function filtrarPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso){
 
 function filtrarRecargasPeriodo(tipo,anio,mes,trim,sem,semIso,diaIso){
   return recargas.filter(r=>{
-    const f=new Date(r.fecha+'T00:00:00');
-    if(tipo==='diario')  return r.fecha===diaIso;
+    const fecha=normFecha(r.fecha);
+    const f=new Date(fecha+'T00:00:00');
+    if(tipo==='diario')  return fecha===diaIso;
     if(tipo==='semanal'){const lun=new Date(semIso+'T00:00:00');const dom=new Date(lun);dom.setDate(lun.getDate()+6);return f>=lun&&f<=dom;}
     if(f.getFullYear()!==anio)return false;
     const m=f.getMonth()+1;
