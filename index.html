@@ -260,7 +260,7 @@
     <div class="form-field"><label>N° Comprobante</label><input type="text" id="f-comp" readonly /></div>
     <div class="form-field"><label>Fecha</label><input type="date" id="f-fecha" /></div>
     <div class="form-field"><label>Proveedor / Beneficiario</label><input type="text" id="f-prov" placeholder="Nombre del proveedor" /></div>
-    <div class="form-field"><label>NIT / RUT / CC</label><input type="text" id="f-nit" placeholder="900.000.000-0" /></div>
+    <div class="form-field"><label>NIT / RUT / CC <small style="color:#aaa;font-weight:400">(opcional)</small></label><input type="text" id="f-nit" placeholder="900.000.000-0" /></div>
     <div class="form-field"><label>Concepto</label><input type="text" id="f-concepto" placeholder="Descripción del gasto" /></div>
     <div class="form-field"><label>Categoría</label>
       <select id="f-cat" onchange="toggleOtro()">
@@ -271,8 +271,15 @@
       </select>
     </div>
     <div class="form-field" id="otro-campo"><label>Especificar categoría</label><input type="text" id="f-cat-otro" placeholder="Escribe la categoría..." /></div>
-    <div class="form-field"><label>Subtotal (sin IVA)</label><input type="number" id="f-subtotal" placeholder="0" oninput="calcTotal()" /></div>
-    <div class="form-field"><label>IVA 19% (automático)</label><input type="number" id="f-iva" readonly placeholder="0" /></div>
+    <div class="form-field"><label>Valor / Subtotal</label><input type="number" id="f-subtotal" placeholder="0" oninput="calcTotal()" /></div>
+    <div class="form-field">
+      <label>¿Aplica IVA 19%?</label>
+      <select id="f-iva-aplica" onchange="calcTotal()" style="border-color:var(--border)">
+        <option value="no">❌ Sin IVA</option>
+        <option value="si">✅ Con IVA 19%</option>
+      </select>
+    </div>
+    <div class="form-field"><label>IVA (automático)</label><input type="number" id="f-iva" readonly placeholder="0" /></div>
     <div class="form-field"><label>Total</label><input type="number" id="f-total" readonly placeholder="0" /></div>
     <div class="form-field"><label>¿Tiene Soporte?</label><select id="f-soporte"><option value="Sí">✅ Sí tiene soporte</option><option value="No">❌ Sin soporte</option></select></div>
   </div>
@@ -438,7 +445,7 @@ function saveConfig(){
 }
 function toggleConfig(){const p=document.getElementById('config-panel');p.style.display=p.style.display==='none'||p.style.display===''?'block':'none';}
 function fmt(v){if(isNaN(v)||v===null)return '$ 0';return '$ '+Number(v).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});}
-function calcTotal(){const sub=parseFloat(document.getElementById('f-subtotal').value)||0;const iva=Math.round(sub*0.19);document.getElementById('f-iva').value=iva;document.getElementById('f-total').value=sub+iva;}
+function calcTotal(){const sub=parseFloat(document.getElementById('f-subtotal').value)||0;const aplicaIva=document.getElementById('f-iva-aplica').value==='si';const iva=aplicaIva?Math.round(sub*0.19):0;document.getElementById('f-iva').value=iva;document.getElementById('f-total').value=sub+iva;}
 function toggleOtro(){const v=document.getElementById('f-cat').value;document.getElementById('otro-campo').style.display=v==='Otro'?'block':'none';if(v!=='Otro')document.getElementById('f-cat-otro').value='';}
 function actualizarComprobante(){document.getElementById('f-comp').value=getNextComprobante();}
 
@@ -510,9 +517,12 @@ async function agregarGasto(){
 
 function limpiarForm(){
   ['f-prov','f-nit','f-concepto','f-subtotal','f-iva','f-total','f-cat-otro'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f-cat').value='';document.getElementById('f-soporte').value='Si';
+  document.getElementById('f-cat').value='';
+  document.getElementById('f-soporte').value='Si';
+  document.getElementById('f-iva-aplica').value='no';
   document.getElementById('f-fecha').valueAsDate=new Date();
-  document.getElementById('otro-campo').style.display='none';actualizarComprobante();
+  document.getElementById('otro-campo').style.display='none';
+  actualizarComprobante();
 }
 
 async function sincronizar(silencioso=false){
